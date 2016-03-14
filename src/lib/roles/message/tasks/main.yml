@@ -1,0 +1,150 @@
+---
+
+# Kafka:
+- name: 'kafka : detect existing installation'
+  stat: path=/opt/kafka-{{ message.env.kafka_version }}
+  register: kafka_installed
+
+- name: 'kafka : create group'
+  group: name=kafka state=present
+
+- name: 'kafka : create user'
+  user: name=kafka group=kafka state=present
+
+- name: 'kafka : download'
+  shell: >
+    wget -q -O /tmp/kafka-{{ message.env.kafka_version }}.tgz http://archive.apache.org/dist/kafka/{{ message.env.kafka_version }}/kafka_2.10-{{ message.env.kafka_version }}.tgz
+    creates=/tmp/kafka-{{ message.env.kafka_version }}.tgz
+    warn=no
+  when: kafka_installed.stat.isdir is not defined or not kafka_installed.stat.isdir
+
+- name: 'kafka : decompress'
+  shell: >
+    tar -xvzf /tmp/kafka-{{ message.env.kafka_version }}.tgz -C /tmp &&
+    mv /tmp/kafka_2.10-{{ message.env.kafka_version }} /tmp/kafka-{{ message.env.kafka_version }}
+    creates=/tmp/kafka-{{ message.env.kafka_version }}
+    warn=no
+  when: kafka_installed.stat.isdir is not defined or not kafka_installed.stat.isdir
+
+- name: 'kafka : move'
+  shell: >
+    cp -rp /tmp/kafka-{{ message.env.kafka_version }} /opt/kafka-{{ message.env.kafka_version }}
+    creates=/opt/kafka-{{ message.env.kafka_version }}
+  when: kafka_installed.stat.isdir is not defined or not kafka_installed.stat.isdir
+
+- name: 'kafka : secure'
+  file: >
+    state=directory
+    path=/opt/kafka-{{ message.env.kafka_version }}
+    owner=kafka group=kafka recurse=yes
+
+- name: 'kafka : create fhs filesystem'
+  file: >
+    state=directory
+    path={{ item }}
+    owner=kafka group=kafka mode=0755
+  with_items:
+    - /etc/opt/kafka
+    - /var/opt/kafka
+    - /var/opt/kafka/log
+    - /var/opt/kafka/zookeeper
+
+- name: 'kafka : config'
+  template: >
+    src=etc/opt/kafka/kafka.conf
+    dest=/etc/opt/kafka/kafka.conf
+    owner=kafka group=kafka mode=0750
+  notify: eltmsgctl restart
+
+- name: 'kafka : config zookeeper'
+  template: >
+    src=etc/opt/kafka/zookeeper.conf
+    dest=/etc/opt/kafka/zookeeper.conf
+    owner=kafka group=kafka mode=0750
+  when: inventory_hostname == groups.message[0]
+  notify: eltmsgctl restart
+
+- name: 'kafka : link version agnostic'
+  file: >
+    src=/opt/kafka-{{ message.env.kafka_version }}
+    path=/opt/kafka
+    state=link owner=root group=root
+
+- name: 'kafka : upstart'
+  template: >
+    src=etc/init/kafka.conf
+    dest=/etc/init/kafka.conf
+    owner=root group=root mode=0644
+  notify: eltmsgctl restart
+
+- name: 'kafka : upstart zookeeper'
+  template: >
+    src=etc/init/zookeeper.conf
+    dest=/etc/init/zookeeper.conf
+    owner=root group=root mode=0644
+  when: inventory_hostname == groups.message[0]
+  notify: eltmsgctl restart
+
+- name: 'kafka : firewall'
+  shell: ufw allow from {{ hostvars[item].ansible_eth0.ipv4.address }}/32 proto tcp to any port 9092
+  with_items: "{{ groups.app + groups.message }}"
+
+- name: 'kafka : firewall'
+  shell: ufw allow from {{ hostvars[item].ansible_eth0.ipv4.address }}/32 proto tcp to any port 2181
+  with_items: "{{ groups.app + groups.message }}"
+
+# Elements:
+- name: 'elements : install clis'
+  template: >
+    src=usr/local/bin/{{ item }}
+    dest=/usr/local/bin/{{ item }}
+    group=root owner=root mode=0755
+  with_items:
+    - eltmsgctl
+    - eltmsgdpl
+
+# Config system:
+- name: 'config system : set environment variables'
+  lineinfile: >
+    state=present dest=/etc/profile
+    regexp="^export {{ item.key | upper }}\="
+    line="export {{ item.key | upper }}={{ item.value }}"
+    insertbefore=BOF
+  with_dict: "{{ message.env }}"
+  notify: eltmsgctl restart
+  when: message is defined and message.env is defined
+
+- name: 'config system : detect directories'
+  local_action: "shell { find {{ pwd }}/roles/message/configs -type d ! -path {{ pwd }}/roles/message/configs | sed -e 's|{{ pwd }}/roles/message/configs||g' 2>/dev/null || true ; }"
+  register: configdirs
+  become: no
+
+- name: 'config system : detect files'
+  local_action: "shell { find {{ pwd }}/roles/message/configs -type f ! -name '.DS_Store' | sed -e 's|{{ pwd }}/roles/message/configs||g' 2>/dev/null || true ; }"
+  register: configfiles
+  become: no
+
+- name: 'config system : create directories'
+  file: >
+    state=directory
+    path={{ item }}
+  with_items: "{{ configdirs.stdout.splitlines() }}"
+  notify: eltmsgctl restart
+  when: configdirs.stdout.splitlines().0 is defined
+
+- name: 'config system : create files'
+  template: >
+    src="{{ pwd }}/roles/message/configs{{ item }}"
+    dest={{ item }}
+    owner=root group=root mode=0700
+  with_items: "{{ configfiles.stdout.splitlines() }}"
+  notify: eltmsgctl restart
+  when: configfiles.stdout.splitlines().0 is defined
+
+- name: 'config system : execute shell entries'
+  shell: "source /etc/profile ; {{ item }}"
+  args:
+    executable: /bin/bash
+  with_items: "{{ message.shell }}"
+  notify: eltmsgctl restart
+  when: message is defined and message.shell is defined and message.shell.0 is defined

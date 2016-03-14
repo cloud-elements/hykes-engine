@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+case "$1" in
+  restart)
+    exec service tomcat restart webapp=elements
+  ;;
+
+  start)
+    exec service tomcat start webapp=elements
+  ;;
+
+  stop)
+    # Upstart/start-stop-daemon exits 1 when not already running. While technically correct, we
+    # want to treat it as an exit 0 (since it is stopped after all) for all intents and purposes.
+    service tomcat stop webapp=elements || exit 0
+  ;;
+
+  *)
+    echo 'Usage:'
+    echo '  eltappctl {restart|start|stop}'
+    exit 1
+  ;;
+esac
+
+exit 0

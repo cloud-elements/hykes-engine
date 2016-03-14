@@ -1,0 +1,12 @@
+---
+
+# Usage:
+#  ansible-playbook -i inventory logstore.yml
+#  ansible-playbook -i inventory logstore.yml --extra-vars='limit=logstore[0]'
+
+- name: logstore
+  hosts: "{{ limit | default('*') }}:&logstore"
+  become: yes
+  become_method: sudo
+  roles:
+    - logstore

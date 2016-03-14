@@ -1,0 +1,33 @@
+<settings>
+  <profiles>
+    <profile>
+      <id>elements</id>
+      <properties>
+        <patchDirectory>/tmp/.eltdpl/elements/jars/db/postgres</patchDirectory>
+        <jarFilesLocation></jarFilesLocation>
+        <warFilesLocation></warFilesLocation>
+        <searchRoot>/tmp/.eltdpl/elements/jars</searchRoot>
+        <searchIncludes>db/postgres</searchIncludes>
+        <dbDriver>org.postgresql.Driver</dbDriver>
+        <dbUrl>jdbc:postgresql://localhost:5432/elements</dbUrl>
+        <dbUsername>elements</dbUsername>
+        <environmentFile>/tmp/.eltdpl/elements/jars/db/environment/dbdeploy-production.properties</environmentFile>
+        <updatePatchPrefix>ce-framework</updatePatchPrefix>
+      </properties>
+    </profile>
+    <profile>
+      <id>cesecurity</id>
+      <properties>
+         <patchDirectory>/tmp/.eltdpl/elements/jars/db/postgres</patchDirectory>
+         <jarFilesLocation></jarFilesLocation>
+         <warFilesLocation></warFilesLocation>
+         <searchRoot>/tmp/.eltdpl/elements/jars</searchRoot>
+         <searchIncludes>db/postgres</searchIncludes>
+         <dbDriver>org.postgresql.Driver</dbDriver>
+         <dbUrl>jdbc:postgresql://localhost:5432/cesecurity</dbUrl>
+         <dbUsername>cesecurity</dbUsername>
+         <updatePatchPrefix>ce-security</updatePatchPrefix>
+      </properties>
+    </profile>
+  </profiles>
+</settings>

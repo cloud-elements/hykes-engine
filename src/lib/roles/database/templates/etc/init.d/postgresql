@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+### BEGIN INIT INFO
+# Provides: postgresql
+# Required-Start: $local_fs $remote_fs $network $time
+# Required-Stop: $local_fs $remote_fs $network $time
+# Should-Start: $syslog
+# Should-Stop: $syslog
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: postgresql
+### END INIT INFO
+
+PG_CONF=/etc/opt/postgresql/postgresql.conf
+PG_DATA=/var/opt/postgresql/data
+PG_LOG=/var/opt/postgresql/log/postgresql.log
+
+case $1 in
+  reload)
+    echo -n "Reload postgresql: "
+    su - postgres -c "/opt/bin/pg_ctl reload -D $PG_DATA -s -o '--config-file=$PG_CONF'"
+    echo 'done'
+  ;;
+  restart)
+    echo -n 'Restarting postgresql: '
+    test -f /var/opt/postgresql/data/postmaster.pid \
+      && su - postgres -c "/opt/bin/pg_ctl stop -D $PG_DATA -s -m fast -w -o '--config-file=$PG_CONF'"
+    su - postgres -c "/opt/bin/pg_ctl start -D $PG_DATA -l $PG_LOG -o '--config-file=$PG_CONF' 1>/dev/null"
+    echo 'done'
+  ;;
+  start)
+    echo -n 'Starting postgresql: '
+    su - postgres -c "/opt/bin/pg_ctl start -D $PG_DATA -l $PG_LOG -o '--config-file=$PG_CONF' 1>/dev/null"
+    echo 'done'
+  ;;
+  status)
+    su - postgres -c "/opt/bin/pg_ctl status -D $PG_DATA -o '--config-file=$PG_CONF'"
+  ;;
+  stop)
+    echo -n 'Stopping postgresql: '
+    test -f /var/opt/postgresql/data/postmaster.pid \
+      && su - postgres -c "/opt/bin/pg_ctl stop -D $PG_DATA -s -m fast -o '--config-file=$PG_CONF'"
+    echo 'done'
+  ;;
+  *)
+    echo 'Usage:'
+    echo '  postgresql {start|stop|restart|reload|status}'
+    exit 1
+  ;;
+esac
+
+exit 0

@@ -1,0 +1,12 @@
+---
+
+# Usage:
+#  ansible-playbook -i inventory message.yml
+#  ansible-playbook -i inventory message.yml --extra-vars='limit=message[0]'
+
+- name: message
+  hosts: "{{ limit | default('*') }}:&message"
+  become: yes
+  become_method: sudo
+  roles:
+    - message

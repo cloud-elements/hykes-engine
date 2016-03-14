@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+case "$1" in
+  restart)
+    service postgresql restart || exit 1
+    sleep 5
+    service repmgr restart || exit 1
+  ;;
+
+  start)
+    service postgresql start || exit 1
+    service repmgr start || exit 1
+  ;;
+
+  stop)
+    service postgresql stop || exit 1
+    service repmgr stop || exit 1
+  ;;
+
+  *)
+    echo 'Usage:'
+    echo '  eltdbctl {start|stop|restart}'
+    exit 1
+  ;;
+esac
+
+exit 0

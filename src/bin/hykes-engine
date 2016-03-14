@@ -1,0 +1,227 @@
+#!/usr/bin/env bash
+
+export ANSIBLE_HOST_KEY_CHECKING=False
+
+bindir=
+libdir=
+cmd="${1}"; shift
+
+## Global utility functions #######################################################################
+function pprint() {
+  local blue='\033[1;34m'
+  local green='\033[1;32m'
+  local red='\033[1;31m'
+  local normal='\033[0m'
+  local white='\033[1;37m'
+
+  while (( "$#" )); do
+    case "${1}" in
+      -n) local n='-n'; shift ;;
+      -q) local q='-q'; shift ;;
+      *)
+        test -n "${1}" && test -n "${adj}" && local msg=${1}
+        test -n "${1}" && test -z "${adj}" && local adj=${1}
+        shift
+      ;;
+    esac
+  done
+
+  if [ -z "${q}" ]; then
+    case "${adj}" in
+      bad) echo -e ${n} "${red}${msg}${normal}" ;;
+      good) echo -e ${n} "${green}${msg}${normal}" ;;
+      head) echo -e ${n} "${blue}==>${normal} ${white}${msg}${normal}" ;;
+      subhead) echo -e ${n} "${green}==>${normal} ${white}${msg}${normal}" ;;
+      *) echo ${n} "${msg}" ;;
+    esac
+  fi
+}
+export -f pprint
+
+## Argument and option parsing ####################################################################
+while (( "$#" )); do
+  case "${1}" in
+    --as=*) as=${1/--as=/''}; shift ;;
+    --against=*) against=${1/--against=/''}; shift ;;
+    --backup-encryption-password=*) backup_encrpytion_password=${1/--backup-encryption-password=/''}; shift ;;
+    --cesecurity-password=*) cesecurity_password=${1/--cesecurity-password=/''}; shift ;;
+    --deploy) deploy='0'; shift ;;
+    --elements-password=*) elements_password=${1/--elements-password=/''}; shift ;;
+    --init) init='0'; shift ;;
+    --key=*) key=${1/--key=/''}; shift ;;
+    --master-encryption-password=*) master_encryption_password=${1/--master-encryption-password=/''}; shift ;;
+    --quiet) quiet='-q'; shift ;;
+    --username=*) username=${1/--username=/''}; shift ;;
+    *)
+      case "${cmd}" in
+        key)
+          test -n "${1}" && test -n "${username}" && key=${1}
+          test -n "${1}" && test -z "${username}" && username=${1}
+        ;;
+      esac
+      shift
+    ;;
+  esac
+done
+
+## Argument and option prompting ##################################################################
+case "${cmd}" in
+  build)
+    if [ -n "${init}" ]; then
+      test -z "${elements_password}" \
+        && { read -e -p 'Enter Elements password: ' -s elements_password; echo; }
+      test -z "${cesecurity_password}" \
+        && { read -e -p 'Enter CE security password: ' -s cesecurity_password; echo; }
+      test -z "${master_encryption_password}" \
+        && { read -e -p 'Enter master encryption password: ' -s master_encryption_password; echo; }
+      test -z "${backup_encryption_password}" \
+        && { read -e -p 'Enter backup encryption password: ' -s backup_encryption_password; echo; }
+    fi
+  ;;
+  deploy)
+    test -z "${elements_password}" \
+      && { read -e -p 'Enter Elements password: ' -s elements_password; echo; }
+    test -z "${cesecurity_password}" \
+      && { read -e -p 'Enter CE security password: ' -s cesecurity_password; echo; }
+  ;;
+  key)
+    test -z "${username}" && read -e -p 'Enter username (e.g. rocky): ' username
+    test -z "${key}" && read -e -p 'Enter key (e.g. https://github.com/rockymadden.keys): ' key
+  ;;
+esac
+
+## Command utility functions ######################################################################
+function ingest() {
+  mkdir -p "${libdir}/group_vars" && \
+  rm -f "${libdir}/cloud" && \
+  cp -a "$(pwd)/hykes.ini" "${libdir}/cloud" && \
+  rm -f "${libdir}/group_vars/cloud" && \
+  cp -a "$(pwd)/hykes.yml" "${libdir}/group_vars/cloud" && \
+  rm -rf "${libdir}/roles/app/configs" && mkdir -p "${libdir}/roles/app/configs" && \
+  { cp -a "$(pwd)/app/" "${libdir}/roles/app/configs/" 2>/dev/null || true; } && \
+  rm -rf "${libdir}/roles/cache/configs" && mkdir -p "${libdir}/roles/cache/configs" && \
+  { cp -a "$(pwd)/cache/" "${libdir}/roles/cache/configs/" 2>/dev/null || true; } && \
+  rm -rf "${libdir}/roles/cloud" && mkdir -p "${libdir}/roles/cloud/configs" && \
+  { cp -a "$(pwd)/cloud/" "${libdir}/roles/cloud/configs/" 2>/dev/null || true; } && \
+  rm -rf "${libdir}/roles/database/configs" && mkdir -p "${libdir}/roles/database/configs" && \
+  { cp -a "$(pwd)/database/" "${libdir}/roles/database/configs/" 2>/dev/null || true; } && \
+  rm -rf "${libdir}/roles/loadbalance/configs" && mkdir -p "${libdir}/roles/loadbalance/configs" && \
+  { cp -a "$(pwd)/loadbalance/" "${libdir}/roles/loadbalance/configs/" 2>/dev/null || true; } && \
+  rm -rf "${libdir}/roles/logpipe/configs" && mkdir -p "${libdir}/roles/logpipe/configs" && \
+  { cp -a "$(pwd)/logpipe/" "${libdir}/roles/logpipe/configs/" 2>/dev/null || true; } && \
+  rm -rf "${libdir}/roles/logstore/configs" && mkdir -p "${libdir}/roles/logstore/configs" && \
+  { cp -a "$(pwd)/logstore/" "${libdir}/roles/logstore/configs/" 2>/dev/null || true; } && \
+  rm -rf "${libdir}/roles/message/configs" && mkdir -p "${libdir}/roles/message/configs" && \
+  { cp -a "$(pwd)/message/" "${libdir}/roles/message/configs/" 2>/dev/null || true; }
+}
+
+## Command functions ##############################################################################
+function build() {
+  pprint head 'Building' ${quiet}
+
+  pprint subhead 'Ingesting' ${quiet}
+  ingest || { pprint bad 'failed' ${quiet}; return 1; }
+
+  pprint subhead 'Executing' ${quiet}
+  if [ -n "${as}" ]; then local user="--user=${as}"; fi
+  if [ -n "${against}" ]; then local limit="limit=${against}"; fi
+  if [ -n "${init}" ]; then local init="init=1"; fi
+  if [ -n "${elements_password}" ]; then local elpass="elements_password=${elements_password}"; fi
+  if [ -n "${cesecurity_password}" ]; then local cepass="cesecurity_password=${cesecurity_password}"; fi
+  if [ -n "${master_encryption_password}" ]; then local mspass="master_encryption_password=${master_encryption_password}"; fi
+  if [ -n "${backup_encryption_password}" ]; then local bkpass="backup_encryption_password=${backup_encryption_password}"; fi
+  ansible-playbook -i "${libdir}/cloud" "${libdir}/cloud.yml" ${user} \
+    --extra-vars "pwd=${libdir} ${limit} ${init} ${elpass} ${cepass} ${mspass} ${bkpass}" \
+    || { pprint bad 'failed' ${quiet}; return 1; }
+}
+
+function deploy() {
+  pprint head 'Deploying' ${quiet}
+
+  pprint subhead 'Ingesting' ${quiet}
+  ingest || { pprint bad 'failed' ${quiet}; return 1; }
+
+  pprint subhead 'Executing' ${quiet}
+  local elpass="elements_password=${elements_password}"
+  local cepass="cesecurity_password=${cesecurity_password}"
+  if [ -n "${as}" ]; then local user="--user=${as}"; fi
+  ansible-playbook -i "${libdir}/cloud" "${libdir}/util_deploy.yml" ${user} \
+    --extra-vars "pwd=${libdir} ${limit} ${elpass} ${cepass}" \
+    || { pprint bad 'failed' ${quiet}; return 1; }
+}
+
+function help() {
+  a=(${0//\// })
+  bin=${a[${#a[@]}-1]}
+
+  echo 'Usage:'
+  echo "  ${bin} build [--against=<role>] [--as=<username>] [--init] [--quiet]"
+  echo "  ${bin} deploy [--as=<username>] [--quiet]"
+  echo "  ${bin} key <username> <key> [--against=<role>] [--as=<username>] [--quiet]"
+  echo "  ${bin} resume [--as=<username>] [--quiet]"
+  echo "  ${bin} suspend [--as=<username>] [--quiet]"
+  echo
+  echo 'Core Commands:'
+  echo '  build      Build or rebuild cloud'
+  echo '  deploy     Deploy to cloud'
+  echo '  key        Key or rekey cloud'
+  echo '  resume     Resume cloud (publicly consumable)'
+  echo '  suspend    Suspend cloud (not publicly consumable)'
+  echo
+  echo 'More Information:'
+  echo '  docs     https://developers.cloud-elements.com'
+  echo '  forum    https://forum.cloud-elements.com'
+  echo '  repo     https://github.com/cloud-elements/hykes-engine'
+}
+
+function key() {
+  pprint head 'Keying' ${quiet}
+
+  pprint subhead 'Ingesting' ${quiet}
+  ingest || { pprint bad 'failed' ${quiet}; return 1; }
+
+  pprint subhead 'Executing' ${quiet}
+  if [ -n "${as}" ]; then local user="--user=${as}"; fi
+  if [ -n "${against}" ]; then local limit="limit=${against}"; fi
+  ansible-playbook -i "${libdir}/cloud" "${libdir}/util_key.yml" ${user} \
+    --extra-vars "pwd=${libdir} username=${username} key=${key} ${limit}" \
+    || { pprint bad 'failed' ${quiet}; return 1; }
+}
+
+function resume() {
+  pprint head 'Resuming' ${quiet}
+
+  pprint subhead 'Ingesting' ${quiet}
+  ingest || { pprint bad 'failed' ${quiet}; return 1; }
+
+  pprint subhead 'Executing' ${quiet}
+  if [ -n "${as}" ]; then local user="--user=${as}"; fi
+  ansible-playbook -i "${libdir}/cloud" "${libdir}/util_resume.yml" ${user} \
+    --extra-vars "pwd=${libdir}" \
+    || { pprint bad 'failed'; return 1; }
+}
+
+function suspend() {
+  pprint head 'Suspending' ${quiet}
+
+  pprint subhead 'Ingesting' ${quiet}
+  ingest || { pprint bad 'failed' ${quiet}; return 1; }
+
+  pprint subhead 'Executing' ${quiet}
+  if [ -n "${as}" ]; then local user="--user=${as}"; fi
+  ansible-playbook -i "${libdir}/cloud" "${libdir}/util_suspend.yml" ${user} \
+    --extra-vars "pwd=${libdir}" \
+    || { pprint bad 'failed'; return 1; }
+}
+
+function version() {
+  echo 'v0.0.0'
+}
+
+## Command routing ################################################################################
+case "${cmd}" in
+  --help|-h) help; exit 0 ;;
+  --version|-v) version; exit 0 ;;
+  build|deploy|key|resume|suspend) "${cmd}"; exit "$?" ;;
+  *) help; exit 1 ;;
+esac

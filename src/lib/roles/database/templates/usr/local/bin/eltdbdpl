@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+
+function pgcreate() {
+  if ! pgexists ${1}; then
+    psql -U postgres -q -c "CREATE USER ${1} WITH CREATEDB INHERIT LOGIN ENCRYPTED PASSWORD '${2}';" 2>&1 >/dev/null
+    psql -U postgres -q -c "CREATE DATABASE ${1} WITH OWNER ${1};" 2>&1 >/dev/null
+  fi
+
+  return 0
+}
+
+function pgexists() {
+  e=$(psql -U postgres -lqt | cut -f 1 | grep -w ${1} | wc -l)
+  [ "$e" == "1" ]
+}
+
+case "$1" in
+  checkout)
+    exec eltdpl checkout ${2}
+  ;;
+
+  clean)
+    exec eltdpl clean
+  ;;
+
+  init)
+    exec eltdpl init
+  ;;
+
+  deploy)
+    test -d '/tmp/.eltdpl/elements' || { echo 'Checkout not found...'; exit 1; }
+
+    eltdbctl start
+    pgexists elements || pgcreate elements ${2}
+    pgexists cesecurity || pgcreate cesecurity ${3}
+    stdout0=$(mvn 2qrius:yakisoba:dbdeploy "-DdbPassword=${2}" -f /opt/maven/conf/elements-pom.xml -P elements 2>/dev/null)
+    stdout1=$(mvn 2qrius:yakisoba:dbdeploy "-DdbPassword=${3}" -f /opt/maven/conf/cesecurity-pom.xml -P cesecurity 2>/dev/null)
+
+    if echo "${stdout0}" | grep -q 'BUILD SUCCESS' && echo "${stdout1}" | grep -q 'BUILD SUCCESS'; then
+      echo "${stdout0}"
+      echo "${stdout1}"
+      exit 0
+    else
+      echo 'Deploy failed...'
+      exit 1
+    fi
+  ;;
+
+  migrate)
+    test -d '/tmp/.eltdpl/elements' || { echo 'Checkout not found...'; exit 1; }
+
+    eltdbctl start
+    stdout=$(java -cp "/tmp/.eltdpl/elements/WEB-INF/lib/*" com.qrius.element.core.security.SecurityCmd \
+      migrate -m ${4} -b ${5} \
+      --dao-url jdbc:postgresql://localhost:5432/cesecurity \
+      --dao-username cesecurity \
+      --dao-password ${3} \
+      --edb-url jdbc:postgresql://localhost:5432/elements \
+      --edb-username elements \
+      --edb-password ${2} \
+      2> >(grep -v 'INFO') | grep -v 'No')
+
+    if echo "${stdout}" | grep -q 'Moving app key' || echo "${stdout}" | grep -q 'Skipping phase'; then
+      echo "${stdout}"
+      exit 0
+    else
+      echo 'Migrate failed...'
+      exit 1
+    fi
+  ;;
+
+  migratekeys)
+    test -d '/tmp/.eltdpl/elements' || { echo 'Checkout not found...'; exit 1; }
+
+    eltdbctl start
+    stdout=$(java -cp "/tmp/.eltdpl/elements/WEB-INF/lib/*" com.qrius.element.core.security.SecurityCmd \
+      show -m ${3} -b ${4} -s -c \
+      --dao-url jdbc:postgresql://localhost:5432/cesecurity \
+      --dao-username cesecurity \
+      --dao-password ${2} \
+      2>/dev/null | grep -v 'No')
+
+    if echo "${stdout}" | grep -q 'master'; then
+      echo "${stdout}" | grep 'master' | sed -e 's/master key: //g'
+      echo "${stdout}" | grep 'backup' | sed -e 's/backup key: //g'
+      exit 0
+    else
+      echo 'Migrate keys failed...'
+      exit 1
+    fi
+  ;;
+
+  migratecesecuritypass)
+    test -d '/tmp/.eltdpl/elements' || { echo 'Checkout not found...'; exit 1; }
+
+    stdout=$(java -cp "/tmp/.eltdpl/elements/WEB-INF/lib/*" com.qrius.element.core.security.SecurityCmd \
+      master -m ${3} ${2} \
+      2>/dev/null | grep -v 'No')
+
+    if [ ! -z "${stdout}" ]; then
+      echo "${stdout}"
+      exit 0
+    else
+      echo 'Migrate cesecurity pass failed...'
+      exit 1
+    fi
+  ;;
+
+  migrateelementspass)
+    test -d '/tmp/.eltdpl/elements' || { echo 'Checkout not found...'; exit 1; }
+
+    eltdbctl start
+    stdout=$(java -cp "/tmp/.eltdpl/elements/WEB-INF/lib/*" com.qrius.element.core.security.SecurityCmd \
+      encrypt -m ${4} -n application.config ${2} \
+      --dao-url jdbc:postgresql://localhost:5432/cesecurity \
+      --dao-username cesecurity \
+      --dao-password ${3} \
+      2>/dev/null | grep -v 'No')
+
+    if [ ! -z "${stdout}" ]; then
+      echo "${stdout}"
+      exit 0
+    else
+      echo 'Migrate elements pass failed...'
+      exit 1
+    fi
+  ;;
+
+  pull)
+    exec eltdpl pull ${2}
+  ;;
+
+  *)
+    echo 'Usage:'
+    echo '  eltdbdpl {clean|init}'
+    echo '  eltdbdpl pull <version>'
+    echo '  eltdbdpl checkout <version>'
+    echo '  eltdbdpl deploy <elements_password> <cesecurity_password>'
+    echo '  eltdbdpl migrate <elements_password> <cesecurity_password> <master_encryption_password> <backup_encryption_password>'
+    echo '  eltdbdpl migratekeys <cesecurity_password> <master_encryption_password> <backup_encryption_password>'
+    echo '  eltdbdpl migratecesecuritypass <cesecurity_password> <master_encryption_password>'
+    echo '  eltdbdpl migrateelementspass <elements_password> <cesecurity_password> <master_encryption_password>'
+    exit 1
+  ;;
+esac

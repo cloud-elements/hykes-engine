@@ -1,0 +1,63 @@
+---
+
+# Usage: ansible-playbook -i inventory cloud.yml
+
+- name: cloud
+  hosts: cloud[0]
+  tasks:
+    - name: 'cloud : config system : destroy manifest file'
+      local_action: shell { rm -f .manifest; }
+
+- name: cloud
+  hosts: cloud
+  serial: 1
+  tasks:
+    - name: 'cloud : config system : create manifest file'
+      local_action: shell { echo '{{ inventory_hostname }} {{ hostvars[inventory_hostname].ansible_eth0.ipv4.address }}' >> .manifest; }
+
+- name: cloud
+  hosts: cloud
+  become: yes
+  become_method: sudo
+  tasks:
+    # Reads in a the last representitive host for each distinct server. In non-consoidated clouds,
+    # this one per host. In consolidated clouds, it is the last on each distinct server.
+    - name: 'cloud : config system : read manifest file'
+      local_action: shell { awk '{a[$2]=$1;}END{for (i in a)print a[i];}' .manifest; }
+      register: manifest_stdout
+      become: no
+
+    - name: 'cloud : config system : set manifest'
+      set_fact:
+        manifest: "{{ manifest_stdout.stdout_lines }}"
+      become: no
+
+    - name: 'cloud : config system : HYKES_ROLE'
+      lineinfile: >
+        state=present dest=/etc/profile
+        regexp="^export HYKES_ROLE_{{ item | upper }}\="
+        line="export HYKES_ROLE_{{ item | upper }}=0"
+        insertbefore=BOF
+      with_items: "{{ group_names | difference('cloud') }}"
+
+    - name: 'cloud : config system : HYKES_ROLES_COUNT'
+      lineinfile: >
+        state=present dest=/etc/profile
+        regexp="^export HYKES_ROLES_COUNT\="
+        line="export HYKES_ROLES_COUNT=$(printenv | grep 'HYKES_ROLE_' | wc -l)"
+        insertafter=EOF
+
+    - name: 'cloud : config system : detect roles count'
+      shell: . /etc/profile ; echo "${HYKES_ROLES_COUNT}"
+      register: roles_count_stdout
+
+    - name: 'cloud : config system : set roles_count'
+      set_fact: roles_count="{{ roles_count_stdout.stdout }}"
+
+- include: database.yml
+- include: message.yml
+- include: cache.yml
+- include: logstore.yml
+- include: logpipe.yml
+- include: app.yml
+- include: loadbalance.yml

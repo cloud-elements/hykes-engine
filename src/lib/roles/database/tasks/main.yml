@@ -1,0 +1,310 @@
+---
+
+# Postgresql:
+- name: 'postgresql : detect existing installation'
+  stat: path=/opt/postgresql-{{ database.env.postgresql_version }}
+  register: postgresql_installed
+
+- name: 'postgresql : create group'
+  group: state=present name=postgres
+
+- name: 'postgresql : create user'
+  user: state=present name=postgres group=postgres shell=/bin/bash generate_ssh_key=yes
+  register: postgresql_user
+
+- name: 'postgresql : fetch user ssh keys'
+  fetch: src=/home/postgres/.ssh/{{ item }} dest=/tmp/ flat=yes
+  with_items:
+    - id_rsa
+    - id_rsa.pub
+  when: inventory_hostname == groups.database[0]
+
+- name: 'postgresql : copy ssh keys'
+  copy: >
+    src=/tmp/{{ item }}
+    dest=/home/postgres/.ssh/{{ item }}
+    owner=postgres group=postgres mode=0600
+  with_items:
+    - id_rsa
+    - id_rsa.pub
+  when: postgresql_user.changed
+
+- name: 'postgresql : authorize ssh keys'
+  authorized_key: state=present user=postgres key="{{ lookup('file', '/tmp/id_rsa.pub') }}"
+
+- name: 'postgresql : download'
+  shell: >
+    wget -q -O /tmp/postgresql-{{ database.env.postgresql_version }}.tar.gz https://ftp.postgresql.org/pub/source/v{{ database.env.postgresql_version }}/postgresql-{{ database.env.postgresql_version }}.tar.gz
+    creates=/tmp/postgresql-{{ database.env.postgresql_version }}.tar.gz
+    warn=no
+  when: postgresql_installed.stat.isdir is not defined or not postgresql_installed.stat.isdir
+
+- name: 'postgresql : decompress'
+  shell: >
+    tar -xvzf /tmp/postgresql-{{ database.env.postgresql_version }}.tar.gz -C /tmp
+    creates=/tmp/postgresql-{{ database.env.postgresql_version }}
+    warn=no
+  when: postgresql_installed.stat.isdir is not defined or not postgresql_installed.stat.isdir
+
+- name: 'postgresql : secure decompressed'
+  file: >
+    state=directory
+    path=/tmp/postgresql-{{ database.env.postgresql_version }}
+    owner=root group=root recurse=yes
+  when: postgresql_installed.stat.isdir is not defined or not postgresql_installed.stat.isdir
+
+- name: 'postgresql : install build dependencies'
+  apt: pkg={{ item }} state=present
+  with_items:
+    - bison
+    - flex
+    - libossp-uuid-dev
+    - libreadline6-dev
+    - zlib1g-dev
+  when: postgresql_installed.stat.isdir is not defined or not postgresql_installed.stat.isdir
+
+- name: 'postgresql : build'
+  shell: >
+    (cd /tmp/postgresql-{{ database.env.postgresql_version }}; ./configure --prefix=/opt/postgresql-{{ database.env.postgresql_version }}) &&
+    (cd /tmp/postgresql-{{ database.env.postgresql_version }}; make) &&
+    (cd /tmp/postgresql-{{ database.env.postgresql_version }}; make install)
+  when: postgresql_installed.stat.isdir is not defined or not postgresql_installed.stat.isdir
+
+- name: 'postgresql : create fhs filesystem'
+  file: >
+    state=directory
+    path={{ item.path }}
+    owner=postgres group=postgres mode={{ item.mode }}
+  with_items:
+    - path: /etc/opt/postgresql
+      mode: '0755'
+    - path: /var/opt/postgresql
+      mode: '0755'
+    - path: /var/opt/postgresql/log
+      mode: '0755'
+    - path: /var/opt/postgresql/data
+      mode: '0700'
+  when: postgresql_installed.stat.isdir is not defined or not postgresql_installed.stat.isdir
+
+- name: 'postgresql : config'
+  template: >
+    src=etc/opt/postgresql/{{ item }}
+    dest=/etc/opt/postgresql/{{ item }}
+    owner=postgres group=postgres mode=0600
+  with_items:
+    - pg_hba.conf
+    - pg_ident.conf
+    - postgresql.conf
+  notify: eltdbctl restart
+
+- name: 'postgresql : link version agnostic'
+  file: >
+    state=link
+    src=/opt/postgresql-{{ database.env.postgresql_version }}
+    path=/opt/postgresql
+    owner=root group=root
+  when: postgresql_installed.stat.isdir is not defined or not postgresql_installed.stat.isdir
+
+- name: 'postgresql : link clis'
+  shell: ls /opt/postgresql-{{ database.env.postgresql_version }}/bin | xargs -i ln -s -f /opt/postgresql-{{ database.env.postgresql_version }}/bin/'{}' /opt/bin/'{}'
+  when: postgresql_installed.stat.isdir is not defined or not postgresql_installed.stat.isdir
+
+- name: 'postgresql : firewall'
+  shell: ufw allow from {{ hostvars[item].ansible_eth0.ipv4.address }}/32 proto tcp to any port 5432
+  with_items: "{{ groups.app + groups.database }}"
+
+- name: 'postgresql : init.d'
+  template: >
+    src=etc/init.d/postgresql
+    dest=/etc/init.d/postgresql
+    owner=root group=root mode=0755
+  register: postgresql_initd
+  notify: eltdbctl restart
+
+- name: 'postgresql : update-rc.d'
+  shell: update-rc.d postgresql defaults
+  when: postgresql_initd.changed
+
+# Repmgr
+- name: 'repmgr : detect existing installation'
+  stat: path=/opt/repmgr-{{ database.env.repmgr_version }}
+  register: repmgr_installed
+
+- name: 'repmgr : download'
+  shell: >
+    wget -q -O /tmp/repmgr-{{ database.env.repmgr_version }}.tar.gz https://github.com/2ndQuadrant/repmgr/archive/v{{ database.env.repmgr_version }}.tar.gz
+    creates=/tmp/repmgr-{{ database.env.repmgr_version }}.tar.gz
+    warn=no
+  when: repmgr_installed.stat.islnk is not defined or not repmgr_installed.stat.islnk
+
+- name: 'repmgr : decompress'
+  shell: >
+    tar -xvzf /tmp/repmgr-{{ database.env.repmgr_version }}.tar.gz -C /tmp
+    creates=/tmp/repmgr-{{ database.env.repmgr_version }}
+    warn=no
+  when: repmgr_installed.stat.islnk is not defined or not repmgr_installed.stat.islnk
+
+- name: 'repmgr : build'
+  shell: (cd /tmp/repmgr-{{ database.env.repmgr_version }}; make USE_PGXS=1 install)
+  when: repmgr_installed.stat.islnk is not defined or not repmgr_installed.stat.islnk
+
+- name: 'repmgr : create fhs filesystem'
+  file: >
+    state=directory
+    path={{ item }}
+    owner=postgres group=postgres mode=0755
+  with_items:
+    - /etc/opt/repmgr
+    - /var/opt/repmgr
+    - /var/opt/repmgr/log
+  when: repmgr_installed.stat.islnk is not defined or not repmgr_installed.stat.islnk
+
+- name: 'repmgr : config'
+  template: >
+    src=etc/opt/repmgr/repmgr.conf
+    dest=/etc/opt/repmgr/repmgr.conf
+    owner=postgres group=postgres mode=0644
+  notify: eltdbctl restart
+
+- name: 'repmgr : link version'
+  file: >
+    state=link
+    src=/opt/postgresql-{{ database.env.postgresql_version }}
+    path=/opt/repmgr-{{ database.env.repmgr_version }}
+    owner=root group=root
+  when: repmgr_installed.stat.islnk is not defined or not repmgr_installed.stat.islnk
+
+- name: 'repmgr : link version agnostic'
+  file: >
+    state=link
+    src=/opt/repmgr-{{ database.env.repmgr_version }}
+    path=/opt/repmgr
+    owner=root group=root
+  when: repmgr_installed.stat.islnk is not defined or not repmgr_installed.stat.islnk
+
+- name: 'repmgr : link clis'
+  shell: ls /opt/repmgr-{{ database.env.repmgr_version }}/bin | grep repmgr | xargs -i ln -s -f /opt/repmgr-{{ database.env.repmgr_version }}/bin/'{}' /opt/bin/'{}'
+  when: repmgr_installed.stat.islnk is not defined or not repmgr_installed.stat.islnk
+
+- name: 'repmgr : init.d'
+  template: >
+    src=etc/init.d/repmgr
+    dest=/etc/init.d/repmgr
+    owner=root group=root mode=0755
+  register: repmgr_initd
+  notify: eltdbctl restart
+
+- name: 'repmgr : update-rc.d'
+  shell: update-rc.d repmgr defaults
+  when: repmgr_initd.changed
+
+# Elements:
+- name: 'elements : install clis'
+  template: >
+    src=usr/local/bin/{{ item }}
+    dest=/usr/local/bin/{{ item }}
+    group=root owner=root mode=0755
+  with_items:
+    - eltdbctl
+    - eltdbdpl
+
+# Init:
+- name: 'init : initdb'
+  shell: su - postgres -c "initdb -D /var/opt/postgresql/data/" warn=no
+  when: init is defined and (init | int) == 1 and inventory_hostname == groups.database[0]
+
+- name: 'init : ensure running postgresql'
+  shell: (service postgresql status | grep -q 'no server running' && service postgresql start) || true
+  when: init is defined and (init | int) == 1 and inventory_hostname == groups.database[0]
+
+- name: 'init : eltdbdpl'
+  shell: >
+    eltdbdpl clean &&
+    eltdbdpl init &&
+    eltdbdpl pull {{ app.env.elements_version }} &&
+    eltdbdpl checkout {{ app.env.elements_version }} &&
+    eltdbdpl deploy {{ elements_password }} {{ cesecurity_password }} &&
+    eltdbdpl migrate {{ elements_password }} {{ cesecurity_password }} {{ master_encryption_password }} {{ backup_encryption_password }}
+  when: init is defined and (init | int) == 1 and inventory_hostname == groups.database[0]
+
+- name: 'init : create repmgr postgresql user'
+  shell: createuser -U postgres -s repmgr
+  when: init is defined and (init | int) == 1 and inventory_hostname == groups.database[0]
+
+- name: 'init : create repmgr postgresql database'
+  shell: createdb -U postgres repmgr -O repmgr
+  when: init is defined and (init | int) == 1 and inventory_hostname == groups.database[0]
+
+- name: 'init : create repmgr postgresql functions'
+  shell: psql -U postgres -f /opt/postgresql-{{ database.env.postgresql_version }}/share/contrib/repmgr_funcs.sql repmgr
+  when: init is defined and (init | int) == 1 and inventory_hostname == groups.database[0]
+
+- name: 'init : clone master postgresql server'
+  shell: >
+    su - postgres -c 'repmgr -d repmgr -U repmgr -h {{ hostvars[groups.database[0]].ansible_eth0.ipv4.address }} -f /etc/opt/repmgr/repmgr.conf -w 2048 --ignore-external-config-files standby clone'
+    warn=no
+  when: init is defined and (init | int) == 1 and inventory_hostname != groups.database[0]
+
+- name: 'init : ensure running postgresql'
+  shell: (service postgresql status | grep -q 'no server running' && service postgresql start && sleep 10) || true
+  when: init is defined and (init | int) == 1 and inventory_hostname != groups.database[0]
+
+- name: 'init : register master postgresql server'
+  shell: >
+    su - postgres -c 'repmgr -f /etc/opt/repmgr/repmgr.conf -w 2048 --force master register'
+    warn=no
+  when: init is defined and (init | int) == 1 and inventory_hostname == groups.database[0]
+
+- name: 'init : register standby postgresql server'
+  shell: su - postgres -c 'repmgr -f /etc/opt/repmgr/repmgr.conf -w 2048 --force standby register'
+  when: init is defined and (init | int) == 1 and inventory_hostname != groups.database[0]
+
+- name: 'init : ensure running repmgr'
+  shell: (service repmgr status | grep -q 'stop' && service repmgr start) || true
+  when: init is defined and (init | int) == 1
+
+# Config system:
+- name: 'config system : set environment variables'
+  lineinfile: >
+    state=present dest=/etc/profile
+    regexp="^export {{ item.key | upper }}\="
+    line="export {{ item.key | upper }}={{ item.value }}"
+    insertbefore=BOF
+  with_dict: "{{ database.env }}"
+  notify: eltdbctl restart
+  when: database is defined and database.env is defined
+
+- name: 'config system : detect directories'
+  local_action: "shell { find {{ pwd }}/roles/database/configs -type d ! -path {{ pwd }}/roles/database/configs | sed -e 's|{{ pwd }}/roles/database/configs||g' 2>/dev/null || true; }"
+  register: configdirs
+  become: no
+
+- name: 'config system : detect files'
+  local_action: "shell { find {{ pwd }}/roles/database/configs -type f ! -name '.DS_Store' | sed -e 's|{{ pwd }}/roles/database/configs||g' 2>/dev/null || true; }"
+  register: configfiles
+  become: no
+
+- name: 'config system : create directories'
+  file: >
+    state=directory
+    path={{ item }}
+  with_items: "{{ configdirs.stdout.splitlines() }}"
+  notify: eltdbctl restart
+  when: configdirs.stdout.splitlines().0 is defined
+
+- name: 'config system : create files'
+  template: >
+    src="{{ pwd }}/roles/database/configs{{ item }}"
+    dest={{ item }}
+    owner=root group=root mode=0700
+  with_items: "{{ configfiles.stdout.splitlines() }}"
+  notify: eltdbctl restart
+  when: configfiles.stdout.splitlines().0 is defined
+
+- name: 'config system : execute shell entries'
+  shell: "source /etc/profile; {{ item }}"
+  args:
+    executable: /bin/bash
+  with_items: "{{ database.shell }}"
+  notify: eltdbctl restart
+  when: database is defined and database.shell is defined and database.shell.0 is defined

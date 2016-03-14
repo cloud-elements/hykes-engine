@@ -1,0 +1,206 @@
+---
+
+# Nginx:
+- name: 'nginx : detect existing installation'
+  stat: path=/opt/nginx-{{ loadbalance.env.nginx_version }}
+  register: nginx_installed
+
+- name: 'nginx : create group'
+  group: state=present name=nginx
+
+- name: 'nginx : create user'
+  user: state=present name=nginx group=nginx
+
+- name: 'nginx : download'
+  shell: >
+    wget -q -O /tmp/nginx-{{ loadbalance.env.nginx_version }}.tar.gz http://nginx.org/download/nginx-{{ loadbalance.env.nginx_version }}.tar.gz
+    creates=/tmp/nginx-{{ loadbalance.env.nginx_version }}.tar.gz
+    warn=no
+  when: nginx_installed.stat.isdir is not defined or not nginx_installed.stat.isdir
+
+- name: 'nginx : decompress'
+  shell: >
+    tar -xvzf /tmp/nginx-{{ loadbalance.env.nginx_version }}.tar.gz -C /tmp
+    creates=/tmp/nginx-{{ loadbalance.env.nginx_version }}
+    warn=no
+  when: nginx_installed.stat.isdir is not defined or not nginx_installed.stat.isdir
+
+- name: 'nginx : create fhs filesystem'
+  file: >
+    state=directory
+    path={{ item }}
+    owner=root group=root mode=755
+  with_items:
+    - /etc/opt/nginx
+    - /etc/opt/nginx/sites
+    - /var/opt/nginx
+    - /var/opt/nginx/body
+    - /var/opt/nginx/cache
+    - /var/opt/nginx/cache/elements
+    - /var/opt/nginx/cache/logs
+    - /var/opt/nginx/fastcgi
+    - /var/opt/nginx/log
+    - /var/opt/nginx/log/sites
+    - /var/opt/nginx/proxy
+    - /var/opt/nginx/scgi
+    - /var/opt/nginx/uwsgi
+
+- name: 'nginx : install build dependencies'
+  apt: pkg={{ item }} state=present
+  with_items:
+    - libgd2-xpm-dev
+    - libgeoip-dev
+    - libgoogle-perftools-dev
+    - libpcre3-dev
+    - libperl-dev
+    - libssl-dev
+    - libxml2-dev
+    - libxslt1-dev
+    - zlib1g-dev
+  when: nginx_installed.stat.isdir is not defined or not nginx_installed.stat.isdir
+
+- name: 'nginx : build'
+  shell: >
+    (cd /tmp/nginx-{{ loadbalance.env.nginx_version }}; ./configure \
+      --prefix=/opt/nginx-{{ loadbalance.env.nginx_version }} \
+      --user=nginx \
+      --group=nginx \
+      --conf-path=/etc/opt/nginx/nginx.conf \
+      --pid-path=/var/run/nginx.pid \
+      --lock-path=/var/lock/nginx.lock \
+      --error-log-path=/var/opt/nginx/log/nginx.error.log \
+      --http-log-path=/var/opt/nginx/log/nginx.access.log \
+      --http-client-body-temp-path=/var/opt/nginx/body \
+      --http-proxy-temp-path=/var/opt/nginx/proxy \
+      --http-fastcgi-temp-path=/var/opt/nginx/fastcgi \
+      --http-uwsgi-temp-path=/var/opt/nginx/uwsgi \
+      --http-scgi-temp-path=/var/opt/nginx/scgi \
+      --with-file-aio \
+      --with-http_ssl_module \
+      --with-http_spdy_module \
+      --with-http_realip_module \
+      --with-http_addition_module \
+      --with-http_xslt_module \
+      --with-http_image_filter_module \
+      --with-http_geoip_module \
+      --with-http_sub_module \
+      --with-http_dav_module \
+      --with-http_flv_module \
+      --with-http_mp4_module \
+      --with-http_gunzip_module \
+      --with-http_gzip_static_module \
+      --with-http_auth_request_module \
+      --with-http_random_index_module \
+      --with-http_secure_link_module \
+      --with-http_degradation_module \
+      --with-http_stub_status_module \
+      --with-http_perl_module \
+      --with-pcre \
+      --with-google_perftools_module) &&
+    (cd /tmp/nginx-{{ loadbalance.env.nginx_version }}; make) &&
+    (cd /tmp/nginx-{{ loadbalance.env.nginx_version }}; make install)
+  when: nginx_installed.stat.isdir is not defined or not nginx_installed.stat.isdir
+
+- name: 'nginx : copy config'
+  shell: >
+    cp -a /tmp/nginx-{{ loadbalance.env.nginx_version }}/conf/* /etc/opt/nginx &&
+    chmod 644 $(find /etc/opt/nginx -type f) &&
+    chown root:root $(find /etc/opt/nginx -type f)
+  when: nginx_installed.stat.isdir is not defined or not nginx_installed.stat.isdir
+  notify: eltlbctl restart
+
+- name: 'nginx : config'
+  template: >
+    src={{ item }}
+    dest=/{{ item }}
+    owner=root group=root mode=0644
+  with_items:
+    - etc/opt/nginx/nginx.conf
+    - etc/opt/nginx/sites/elements.conf
+    - etc/opt/nginx/sites/logs.conf
+  notify: eltlbctl restart
+
+- name: 'nginx : link version agnostic'
+  file: >
+    state=link
+    src=/opt/nginx-{{ loadbalance.env.nginx_version }}
+    path=/opt/nginx
+    owner=root group=root
+  when: nginx_installed.stat.isdir is not defined or not nginx_installed.stat.isdir
+
+- name: 'nginx : link clis'
+  shell: ls /opt/nginx-{{ loadbalance.env.nginx_version }}/sbin | xargs -i ln -s -f /opt/nginx-{{ loadbalance.env.nginx_version }}/sbin/'{}' /opt/bin/'{}'
+  when: nginx_installed.stat.isdir is not defined or not nginx_installed.stat.isdir
+
+- name: 'nginx : firewall elements'
+  shell: ufw allow proto tcp to any port {{ item }}
+  with_items:
+    - 80
+    - 443
+
+- name: 'nginx : firewall logs'
+  shell: ufw allow from {{ hostvars[item].ansible_eth0.ipv4.address }}/32 proto tcp to any port 81
+  with_items: "{{ groups.app + groups.cache }}"
+
+- name: 'nginx : upstart'
+  template: >
+    src=etc/init/nginx.conf
+    dest=/etc/init/nginx.conf
+    owner=root group=root mode=0644
+  notify: eltlbctl restart
+
+# Elements:
+- name: 'elements : install clis'
+  template: >
+    src=usr/local/bin/{{ item }}
+    dest=/usr/local/bin/{{ item }}
+    group=root owner=root mode=0755
+  with_items:
+    - eltlbctl
+    - eltlbdpl
+
+# Config system:
+- name: 'config system : set environment variables'
+  lineinfile: >
+    state=present dest=/etc/profile
+    regexp="^export {{ item.key | upper }}\="
+    line="export {{ item.key | upper }}={{ item.value }}"
+    insertbefore=BOF
+  with_dict: "{{ loadbalance.env }}"
+  notify: eltlbctl restart
+  when: loadbalance is defined and loadbalance.env is defined
+
+- name: 'config system : detect directories'
+  local_action: "shell { find {{ pwd }}/roles/loadbalance/configs -type d ! -path {{ pwd }}/roles/loadbalance/configs | sed -e 's|{{ pwd }}/roles/loadbalance/configs||g' 2>/dev/null || true; }"
+  register: configdirs
+  become: no
+
+- name: 'config system : detect files'
+  local_action: "shell { find {{ pwd }}/roles/loadbalance/configs -type f ! -name '.DS_Store' | sed -e 's|{{ pwd }}/roles/loadbalance/configs||g' 2>/dev/null || true; }"
+  register: configfiles
+  become: no
+
+- name: 'config system : create directories'
+  file: >
+    state=directory
+    path={{ item }}
+  with_items: "{{ configdirs.stdout.splitlines() }}"
+  notify: eltlbctl restart
+  when: configdirs.stdout.splitlines().0 is defined
+
+- name: 'config system : create files'
+  template: >
+    src="{{ pwd }}/roles/loadbalance/configs{{ item }}"
+    dest={{ item }}
+    owner=root group=root mode=0700
+  with_items: "{{ configfiles.stdout.splitlines() }}"
+  notify: eltlbctl restart
+  when: configfiles.stdout.splitlines().0 is defined
+
+- name: 'config system : execute shell entries'
+  shell: "source /etc/profile; {{ item }}"
+  args:
+    executable: /bin/bash
+  with_items: "{{ loadbalance.shell }}"
+  notify: eltlbctl restart
+  when: loadbalance is defined and loadbalance.shell is defined and loadbalance.shell.0 is defined

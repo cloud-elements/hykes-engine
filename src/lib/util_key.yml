@@ -1,0 +1,30 @@
+---
+
+# Usage:
+#   ansible-playbook -i inventory util_key.yml \
+#     --extra-vars "username=username key=https://github.com/username.keys" \
+#     --user=username \
+#     --ask-become-pass \
+#     --ask-pass
+#   ansible-playbook -i inventory util_key.yml \
+#     --extra-vars "username=username key=https://github.com/username.keys" \
+#     --user=username
+#   ansible-playbook -i inventory util_key.yml \
+#     --extra-vars "username=username key=https://github.com/username.keys"
+
+- hosts: "{{ limit | default('all') }}"
+  become: yes
+  become_method: sudo
+  serial: 1
+  tasks:
+    - name: create admin group
+      group: name=admin state=present
+
+    - name: create admin user
+      user: name="{{ username }}" shell=/bin/bash group=admin state=present
+
+    - name: config admin user keys
+      authorized_key: user="{{ username }}" key="{{ key }}" state=present
+
+    - name: config /etc/sudoers
+      lineinfile: dest=/etc/sudoers regexp='^%ADMIN ALL\=' line='%ADMIN ALL=(ALL:ALL) NOPASSWD:ALL' state=present validate='visudo -cf %s'

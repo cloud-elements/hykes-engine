@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+a=${4}
+
+if eval ${1}; then
+  echo ${2}
+  exit 0
+else
+  echo ${3}
+  exit 1
+fi

@@ -1,0 +1,76 @@
+---
+
+- name: detect existing installation
+  stat: path=/opt/maven-3.3.3
+  register: maven_installed
+
+- name: create fhs filesystem
+  file: >
+    state=directory
+    path={{ item }}
+    owner=root group=root mode=0755
+  with_items:
+    - /etc/opt/maven
+
+- name: download
+  shell: >
+    wget -q -O /tmp/maven-3.3.3.tar.gz http://archive.apache.org/dist/maven/maven-3/3.3.3/binaries/apache-maven-3.3.3-bin.tar.gz
+    creates=/tmp/maven-3.3.3.tar.gz
+    warn=no
+  when: maven_installed.stat.isdir is not defined or not maven_installed.stat.isdir
+
+- name: decompress
+  shell: >
+    tar -xvzf /tmp/maven-3.3.3.tar.gz -C /tmp &&
+    mv /tmp/apache-maven-3.3.3 /tmp/maven-3.3.3
+    warn=no
+  when: maven_installed.stat.isdir is not defined or not maven_installed.stat.isdir
+
+- name: move
+  shell: cp -rp /tmp/maven-3.3.3 /opt/maven-3.3.3
+  when: maven_installed.stat.isdir is not defined or not maven_installed.stat.isdir
+
+- name: secure
+  file: >
+    state=directory
+    path=/opt/maven-3.3.3
+    owner=root group=root recurse=yes
+
+- name: move config
+  shell: >
+    mv /opt/maven-3.3.3/conf/* /etc/opt/maven &&
+    rm -rf /opt/maven-3.3.3/conf &&
+    ln -s /etc/opt/maven /opt/maven-3.3.3/conf
+  when: maven_installed.stat.isdir is not defined or not maven_installed.stat.isdir
+
+- name: config
+  template: >
+    src=opt/maven/conf/{{ item }}
+    dest=/etc/opt/maven/{{ item }}
+    owner=root group=root mode=0644
+  with_items:
+    - settings.xml
+    - cesecurity-pom.xml
+    - elements-pom.xml
+
+- name: config M2_HOME
+  lineinfile: >
+    state=present dest=/etc/environment
+    regexp='^M2\_HOME\='
+    line='M2_HOME=/opt/maven-3.3.3'
+
+- name: link version agnostic
+  file: >
+    src=/opt/maven-3.3.3
+    path=/opt/maven
+    state=link owner=root group=root
+
+- name: link clis
+  file: >
+    src=/opt/maven-3.3.3/bin/{{ item }}
+    dest=/opt/bin/{{ item }}
+    state=link owner=root group=root
+  with_items:
+    - mvn
+    - mvnDebug
+    - mvnyjp

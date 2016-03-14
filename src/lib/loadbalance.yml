@@ -1,0 +1,12 @@
+---
+
+# Usage:
+#  ansible-playbook -i inventory loadbalance.yml
+#  ansible-playbook -i inventory loadbalance.yml --extra-vars='limit=loadbalance[0]'
+
+- name: loadbalance
+  hosts: "{{ limit | default('*') }}:&loadbalance"
+  become: yes
+  become_method: sudo
+  roles:
+    - loadbalance

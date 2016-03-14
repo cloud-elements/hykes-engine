@@ -1,0 +1,239 @@
+---
+
+# Tomcat:
+- name: 'tomcat : detect existing installation'
+  stat: path=/opt/tomcat-{{ app.env.tomcat_version }}
+  register: tomcat_installed
+
+- name: 'tomcat : create group'
+  group: name=tomcat state=present
+
+- name: 'tomcat : create user'
+  user: name=tomcat group=tomcat state=present
+
+- name: 'tomcat : download'
+  shell: >
+    wget -q -O /tmp/tomcat-{{ app.env.tomcat_version }}.tar.gz http://archive.apache.org/dist/tomcat/tomcat-7/v{{ app.env.tomcat_version }}/bin/apache-tomcat-{{ app.env.tomcat_version }}.tar.gz
+    creates=/tmp/tomcat-{{ app.env.tomcat_version }}.tar.gz
+    warn=no
+  when: tomcat_installed.stat.isdir is not defined or not tomcat_installed.stat.isdir
+
+- name: 'tomcat : decompress'
+  shell: >
+    tar -xvzf /tmp/tomcat-{{ app.env.tomcat_version }}.tar.gz -C /tmp &&
+    mv /tmp/apache-tomcat-{{ app.env.tomcat_version }} /tmp/tomcat-{{ app.env.tomcat_version }}
+    warn=no
+  when: tomcat_installed.stat.isdir is not defined or not tomcat_installed.stat.isdir
+
+- name: 'tomcat : move'
+  shell: cp -a /tmp/tomcat-{{ app.env.tomcat_version }} /opt
+  when: tomcat_installed.stat.isdir is not defined or not tomcat_installed.stat.isdir
+
+- name: 'tomcat : copy additional jars'
+  copy: >
+    src=opt/tomcat/lib
+    dest=/opt/tomcat-{{ app.env.tomcat_version }}
+    owner=tomcat group=tomcat mode=0644
+  notify: eltappctl restart
+
+- name: 'tomcat : secure'
+  file: >
+    state=directory
+    path=/opt/tomcat-{{ app.env.tomcat_version }}
+    owner=tomcat group=tomcat recurse=yes
+
+- name: 'tomcat : create fhs fileystem'
+  file: >
+    state=directory
+    path={{ item }}
+    owner=tomcat group=tomcat mode=0755
+  with_items:
+    - /etc/opt/tomcat
+    - /etc/opt/tomcat/elements
+    - /srv/opt/tomcat
+    - /srv/opt/tomcat/elements
+    - /var/opt/tomcat
+    - /var/opt/tomcat/bulkdownload
+    - /var/opt/tomcat/bulkdownload/elements
+    - /var/opt/tomcat/bulkupload
+    - /var/opt/tomcat/bulkupload/elements
+    - /var/opt/tomcat/download
+    - /var/opt/tomcat/download/elements
+    - /var/opt/tomcat/log
+    - /var/opt/tomcat/log/elements
+    - /var/opt/tomcat/tmp
+    - /var/opt/tomcat/tmp/elements
+    - /var/opt/tomcat/upload
+    - /var/opt/tomcat/upload/elements
+    - /var/opt/tomcat/work
+    - /var/opt/tomcat/work/elements
+
+- name: 'tomcat : config elements'
+  template: >
+    src=etc/opt/tomcat/elements/{{ item }}
+    dest=/etc/opt/tomcat/elements/{{ item }}
+    owner=tomcat group=tomcat mode=0640
+  with_items:
+    - catalina.policy
+    - catalina.properties
+    - context.xml
+    - logging.properties
+    - server.xml
+    - web.xml
+  notify: eltappctl restart
+
+- name: 'tomcat : link version agnostic'
+  file: >
+    state=link
+    src=/opt/tomcat-{{ app.env.tomcat_version }}
+    path=/opt/tomcat
+    owner=root group=root
+
+- name: 'tomcat : firewall'
+  shell: ufw allow from {{ hostvars[item].ansible_eth0.ipv4.address }}/32 proto tcp to any port 8080
+  with_items: "{{ groups.app + groups.loadbalance }}"
+
+- name: 'tomcat : upstart'
+  template: >
+    src=etc/init/tomcat.conf
+    dest=/etc/init/tomcat.conf
+    owner=root group=root mode=0644
+  notify: eltappctl restart
+
+# Elements:
+- name: 'elements : install clis'
+  template: >
+    src=usr/local/bin/{{ item }}
+    dest=/usr/local/bin/{{ item }}
+    group=root owner=root mode=0755
+  with_items:
+    - eltappctl
+    - eltappdpl
+
+# Init:
+- name: 'init : eltappdpl'
+  shell: >
+    eltappdpl clean &&
+    eltappdpl init &&
+    eltappdpl pull {{ app.env.elements_version }} &&
+    eltappdpl checkout {{ app.env.elements_version }} &&
+    eltappdpl deploy
+  when: init is defined and (init | int) == 1
+
+# # Elements:
+# - name: 'elements : detect existing installation'
+#   stat: path=/opt/elements-{{ app.env.elements_version }}
+#   register: elements_installed
+#
+# - name: 'elements : create fhs fileystem'
+#   file: >
+#     state=directory
+#     path={{ item }}
+#     owner=tomcat group=tomcat mode=0755
+#   with_items:
+#     - /etc/opt/elements
+#     - /opt/elements-{{ app.env.elements_version }}
+#     - /opt/elements-{{ app.env.elements_version }}/bin
+#     - /opt/elements-{{ app.env.elements_version }}/src
+#     - /srv/opt/elements
+#     - /var/opt/elements
+#     - /var/opt/elements/bulkdownload
+#     - /var/opt/elements/bulkupload
+#     - /var/opt/elements/download
+#     - /var/opt/elements/log
+#     - /var/opt/elements/tmp
+#     - /var/opt/elements/upload
+#     - /var/opt/elements/work
+#
+# - name: 'elements : download'
+#   shell: >
+#     wget -q -O /tmp/elements-{{ app.env.elements_version }}.war http://repo.cloud-elements.com/cloudelements/elements-application-elements/{{ app.env.elements_version }}/elements-application-elements-{{ app.env.elements_version }}.war
+#     creates=/tmp/elements-{{ app.env.elements_version }}.war
+#     warn=no
+#   when: elements_installed.stat.isdir is not defined or not elements_installed.stat.isdir
+#   notify: eltappctl restart
+#
+# - name: 'elements : move src'
+#   shell: cp -a /tmp/elements-{{ app.env.elements_version }}.war /opt/elements-{{ app.env.elements_version }}/src
+#   when: elements_installed.stat.isdir is not defined or not elements_installed.stat.isdir
+#   notify: eltappctl restart
+#
+# - name: 'elements : move bin'
+#   shell: "{{ item }}"
+#   with_items:
+#     - (cd /opt/elements-{{ app.env.elements_version }}/bin; jar -xf /tmp/elements-{{ app.env.elements_version }}.war)
+#   when: elements_installed.stat.isdir is not defined or not elements_installed.stat.isdir
+#   notify: eltappctl restart
+#
+# - name: 'elements : config'
+#   template: >
+#     src=etc/opt/elements/{{ item }}
+#     dest=/etc/opt/elements/{{ item }}
+#     owner=tomcat group=tomcat mode=0640
+#   with_items:
+#     - catalina.policy
+#     - catalina.properties
+#     - context.xml
+#     - logging.properties
+#     - server.xml
+#     - web.xml
+#   notify: eltappctl restart
+#
+# - name: 'elements : secure'
+#   file: >
+#     state=directory
+#     path=/opt/elements-{{ app.env.elements_version }}
+#     owner=elements group=elements recurse=yes
+#
+# - name: 'elements : link version agnostic'
+#   file: >
+#     state=link
+#     src=/opt/elements-{{ app.env.elements_version }}
+#     path=/opt/elements
+#     owner=root group=root
+
+# Config system:
+- name: 'config system : set environment variables'
+  lineinfile: >
+    state=present dest=/etc/profile
+    regexp="^export {{ item.key | upper }}\="
+    line="export {{ item.key | upper }}={{ item.value }}"
+    insertbefore=BOF
+  with_dict: "{{ app.env }}"
+  notify: eltappctl restart
+  when: app is defined and app.env is defined
+
+- name: 'config system : detect directories'
+  local_action: "shell { find {{ pwd }}/roles/app/configs -type d ! -path {{ pwd }}/roles/app/configs | sed -e 's|{{ pwd }}/roles/app/configs||g' 2>/dev/null || true; }"
+  register: configdirs
+  become: no
+
+- name: 'config system : detect files'
+  local_action: "shell { find {{ pwd }}/roles/app/configs -type f ! -name '.DS_Store' | sed -e 's|{{ pwd }}/roles/app/configs||g' 2>/dev/null || true; }"
+  register: configfiles
+  become: no
+
+- name: 'config system : create directories'
+  file: >
+    state=directory
+    path={{ item }}
+  with_items: "{{ configdirs.stdout.splitlines() }}"
+  notify: eltappctl restart
+  when: configdirs.stdout.splitlines().0 is defined
+
+- name: 'config system : create files'
+  template: >
+    src="{{ pwd }}/roles/app/configs{{ item }}"
+    dest={{ item }}
+    owner=root group=root mode=0700
+  with_items: "{{ configfiles.stdout.splitlines() }}"
+  notify: eltappctl restart
+  when: configfiles.stdout.splitlines().0 is defined
+
+- name: 'config system : execute shell entries'
+  shell: "source /etc/profile; {{ item }}"
+  args:
+    executable: /bin/bash
+  with_items: "{{ app.shell }}"
+  notify: eltappctl restart
+  when: app is defined and app.shell is defined and app.shell.0 is defined

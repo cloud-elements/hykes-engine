@@ -1,0 +1,85 @@
+---
+
+- name: update apt-get
+  apt: update_cache=yes cache_valid_time=86400
+
+- name: install dependencies
+  apt: pkg={{ item }} state=latest
+  with_items:
+    - openssh-server
+    - ntp
+    - ufw
+    - build-essential
+    - sysstat
+
+- name: config sysctl
+  template: src=etc/sysctl.conf dest=/etc/sysctl.conf
+  notify: reload sysctl configuration
+
+- name: config ulimit
+  template: src=etc/security/limits.conf dest=/etc/security/limits.conf
+
+- name: config ufw
+  template: src=etc/ufw/ufw.conf dest=/etc/ufw/ufw.conf
+  notify: enable ufw
+
+- name: reload ufw
+  shell: ufw reload
+
+- name: config ssh
+  template: src=etc/ssh/sshd_config dest=/etc/ssh/sshd_config
+  notify: restart ssh service
+
+- name: firewall ssh
+  shell: ufw allow proto tcp to any port 22
+
+- name: config ntp
+  template: src=etc/ntp.conf dest=/etc/ntp.conf
+  notify: restart ntp service
+
+- name: config timezone
+  shell: timedatectl set-timezone UTC
+
+- name: enable ntp
+  shell: timedatectl set-ntp true
+
+- name: config environment
+  lineinfile: >
+    state=present dest=/etc/environment
+    regexp='^PATH\='
+    line='PATH=/opt/local/sbin:/opt/local/bin:/usr/local/sbin:/usr/local/bin:/opt/sbin:/opt/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+
+- name: config profile
+  lineinfile: >
+    state=present dest=/etc/profile
+    regexp='^export PATH\='
+    line='export PATH=/opt/local/sbin:/opt/local/bin:/usr/local/sbin:/usr/local/bin:/opt/sbin:/opt/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+    insertbefore=BOF
+
+- name: config sudoers
+  lineinfile: >
+    state=present dest=/etc/sudoers
+    regexp='^Defaults\tsecure_path\='
+    line='Defaults\tsecure_path="/opt/local/sbin:/opt/local/bin:/usr/local/sbin:/usr/local/bin:/opt/sbin:/opt/bin:/usr/sbin:/usr/bin:/sbin:/bin"'
+
+- name: create fhs filesystem
+  file: state=directory path={{ item }} group=root owner=root mode=0755
+  with_items:
+    - /etc/opt
+    - /opt/bin
+    - /srv/opt
+    - /var/opt
+
+- name: install clis
+  template: >
+    src=usr/local/bin/{{ item }}
+    dest=/usr/local/bin/{{ item }}
+    group=root owner=root mode=0755
+  with_items:
+    - awaitd
+    - awaitk
+    - eltctl
+    - eltdpl
+    - ppid
+    - techo
+    - texit

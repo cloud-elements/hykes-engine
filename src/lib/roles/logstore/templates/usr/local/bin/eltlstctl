@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+case "$1" in
+  restart)
+    ${0} stop && ${0} start
+    exit $?
+  ;;
+
+  start)
+    ${0} status 1>/dev/null && exit 0
+    exec service elasticsearch start
+  ;;
+
+  status)
+    status=$(service elasticsearch status)
+    echo ${status}
+    exit $(echo ${status} | grep -q 'running')
+  ;;
+
+  stop)
+    ${0} status 1>/dev/null || exit 0
+    exec service elasticsearch stop
+  ;;
+
+  *)
+    echo 'Usage:'
+    echo '  eltlstctl {start|stop|restart|status}'
+    exit 1
+  ;;
+esac

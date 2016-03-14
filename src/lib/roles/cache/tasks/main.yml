@@ -1,0 +1,216 @@
+---
+
+# Redis:
+- name: 'redis : detect existing installation'
+  stat: path=/opt/redis-{{ cache.env.redis_version }}
+  register: redis_installed
+
+- name: 'redis : create group'
+  group: name=redis state=present
+
+- name: 'redis : create user'
+  user: name=redis group=redis state=present
+
+- name: 'redis : download'
+  shell: >
+    wget -q -O /tmp/redis-{{ cache.env.redis_version }}.tar.gz http://download.redis.io/releases/redis-{{ cache.env.redis_version }}.tar.gz
+    creates=/tmp/redis-{{ cache.env.redis_version }}.tar.gz
+    warn=no
+  when: redis_installed.stat.isdir is not defined or not redis_installed.stat.isdir
+
+- name: 'redis : decompress'
+  shell: >
+    tar -xvzf /tmp/redis-{{ cache.env.redis_version }}.tar.gz -C /tmp
+    creates=/tmp/redis-{{ cache.env.redis_version }}
+    warn=no
+  when: redis_installed.stat.isdir is not defined or not redis_installed.stat.isdir
+
+- name: 'redis : build'
+  shell: (cd /tmp/redis-{{ cache.env.redis_version }} ; make && make PREFIX=/opt/redis-{{ cache.env.redis_version }} install)
+  when: redis_installed.stat.isdir is not defined or not redis_installed.stat.isdir
+
+- name: 'redis : secure'
+  file: >
+    state=directory
+    path=/opt/redis-{{ cache.env.redis_version }}
+    owner=redis group=redis recurse=yes
+
+- name: 'redis : create fhs filesystem'
+  file: >
+    state=directory
+    path={{ item }}
+    owner=redis group=redis mode=0755
+  with_items:
+    - /etc/opt/redis
+    - /var/opt/redis
+    - /var/opt/redis/data
+    - /var/opt/redis/log
+
+- name: 'redis : config'
+  template: >
+    src=etc/opt/redis/redis.conf
+    dest=/etc/opt/redis/redis.conf
+    owner=redis group=redis mode=0750
+  notify: eltcshctl restart
+
+- name: 'redis : link version agnostic'
+  file: >
+    src=/opt/redis-{{ cache.env.redis_version }}
+    path=/opt/redis
+    state=link owner=root group=root
+
+- name: 'redis : link clis'
+  file: >
+    src=/opt/redis-{{ cache.env.redis_version }}/bin/{{ item }}
+    path=/opt/bin/{{ item }}
+    state=link owner=root group=root
+  with_items:
+    - redis-cli
+    - redis-server
+
+- name: 'redis : detect if /var/run/redis.pid exists'
+  stat: path=/var/run/redis.pid
+  register: redis_pid
+
+- name: 'redis : create /var/run/redis.pid'
+  file: >
+    state=touch
+    path=/var/run/redis.pid
+    owner=redis group=redis mode=0644
+  when: redis_pid.stat.exists is not defined or not redis_pid.stat.exists
+
+- name: 'redis : upstart'
+  template: >
+    src=etc/init/redis.conf
+    dest=/etc/init/redis.conf
+    owner=root group=root mode=0644
+  notify: eltcshctl restart
+
+- name: 'redis : firewall'
+  shell: ufw allow from {{ hostvars[item].ansible_eth0.ipv4.address }}/32 proto tcp to any port 6379
+  with_items: "{{ groups.app + groups.cache + groups.logpipe }}"
+
+# Memcached:
+- name: 'memcached : detect existing installation'
+  stat: path=/opt/memcached-{{ cache.env.memcached_version }}
+  register: memcached_installed
+- name: 'memcached : create group'
+  group: name=memcached state=present
+
+- name: 'memcached : create user'
+  user: name=memcached group=memcached state=present
+
+- name: 'memcached : install build dependencies'
+  apt: pkg=libevent-dev state=latest
+
+- name: 'memcached : download'
+  shell: >
+    wget -q -O /tmp/memcached-{{ cache.env.memcached_version }}.tar.gz http://memcached.org/files/memcached-{{ cache.env.memcached_version }}.tar.gz
+    creates=/tmp/memcached-{{ cache.env.memcached_version }}.tar.gz
+    warn=no
+  when: memcached_installed.stat.isdir is not defined or not memcached_installed.stat.isdir
+
+- name: 'memcached : decompress'
+  shell: >
+    tar -xvzf /tmp/memcached-{{ cache.env.memcached_version }}.tar.gz -C /tmp
+    creates=/tmp/memcached-{{ cache.env.memcached_version }}
+    warn=no
+  when: memcached_installed.stat.isdir is not defined or not memcached_installed.stat.isdir
+
+- name: 'memcached : build'
+  shell: (cd /tmp/memcached-{{ cache.env.memcached_version }} ; ./configure --prefix=/opt/memcached-{{ cache.env.memcached_version }} && make && make install)
+  when: memcached_installed.stat.isdir is not defined or not memcached_installed.stat.isdir
+
+- name: 'memcached : secure'
+  file: >
+    state=directory
+    path=/opt/memcached-{{ cache.env.memcached_version }}
+    owner=memcached group=memcached recurse=yes
+
+- name: 'memcached : create fhs filesystem'
+  file: >
+    state=directory
+    path={{ item }}
+    owner=memcached group=memcached mode=0755
+  with_items:
+    - /var/opt/memcached
+    - /var/opt/memcached/log
+
+- name: 'memcached : link version agnostic'
+  file: >
+    src=/opt/memcached-{{ cache.env.memcached_version }}
+    path=/opt/memcached
+    state=link owner=root group=root
+
+- name: 'memcached : link clis'
+  file: >
+    src=/opt/memcached-{{ cache.env.memcached_version }}/bin/memcached
+    path=/opt/bin/memcached
+    state=link owner=root group=root
+
+- name: 'memcached : config'
+  template: >
+    src=etc/init/memcached.conf
+    dest=/etc/init/memcached.conf
+    owner=root group=root mode=0644
+  notify: eltcshctl restart
+
+- name: 'memcached : firewall'
+  shell: ufw allow from {{ hostvars[item].ansible_eth0.ipv4.address }}/32 proto tcp to any port 11211
+  with_items: "{{ groups.app + groups.cache }}"
+
+# Elements:
+- name: 'elements : install clis'
+  template: >
+    src=usr/local/bin/{{ item }}
+    dest=/usr/local/bin/{{ item }}
+    group=root owner=root mode=0755
+  with_items:
+    - eltcshctl
+    - eltcshdpl
+
+# Config system:
+- name: 'config system : set environment variables'
+  lineinfile: >
+    state=present dest=/etc/profile
+    regexp="^export {{ item.key | upper }}\="
+    line="export {{ item.key | upper }}={{ item.value }}"
+    insertbefore=BOF
+  with_dict: "{{ cache.env }}"
+  notify: eltcshctl restart
+  when: cache is defined and cache.env is defined
+
+- name: 'config system : detect directories'
+  local_action: "shell { find {{ pwd }}/roles/cache/configs -type d ! -path {{ pwd }}/roles/cache/configs | sed -e 's|{{ pwd }}/roles/cache/configs||g' 2>/dev/null || true ; }"
+  register: configdirs
+  become: no
+
+- name: 'config system : detect files'
+  local_action: "shell { find {{ pwd }}/roles/cache/configs -type f ! -name '.DS_Store' | sed -e 's|{{ pwd }}/roles/cache/configs||g' 2>/dev/null || true ; }"
+  register: configfiles
+  become: no
+
+- name: 'config system : create directories'
+  file: >
+    state=directory
+    path={{ item }}
+  with_items: "{{ configdirs.stdout.splitlines() }}"
+  notify: eltcshctl restart
+  when: configdirs.stdout.splitlines().0 is defined
+
+- name: 'config system : create files'
+  template: >
+    src="{{ pwd }}/roles/cache/configs{{ item }}"
+    dest={{ item }}
+    owner=root group=root mode=0700
+  with_items: "{{ configfiles.stdout.splitlines() }}"
+  notify: eltcshctl restart
+  when: configfiles.stdout.splitlines().0 is defined
+
+- name: 'config system : execute shell entries'
+  shell: "source /etc/profile ; {{ item }}"
+  args:
+    executable: /bin/bash
+  with_items: "{{ cache.shell }}"
+  notify: eltcshctl restart
+  when: cache is defined and cache.shell is defined and cache.shell.0 is defined

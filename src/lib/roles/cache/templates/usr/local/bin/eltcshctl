@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+case "$1" in
+  restart)
+    service redis restart || exit 1
+    service memcached restart || exit 1
+    exit 0
+  ;;
+
+  start)
+    service redis start || exit 1
+    service memcached start || exit 1
+    exit 0
+  ;;
+
+  stop)
+    service redis stop || exit 1
+    service memcached stop || exit 1
+    exit 0
+  ;;
+
+  *)
+    echo 'Usage:'
+    echo '  eltcshctl {start|stop|restart}'
+    exit 1
+  ;;
+esac

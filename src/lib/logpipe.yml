@@ -1,0 +1,12 @@
+---
+
+# Usage:
+#  ansible-playbook -i inventory logpipe.yml
+#  ansible-playbook -i inventory logpipe.yml --extra-vars='limit=logpipe[0]'
+
+- name: logpipe
+  hosts: "{{ limit | default('*') }}:&logpipe"
+  become: yes
+  become_method: sudo
+  roles:
+    - logpipe

@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+case "$1" in
+  checkout)
+    exec eltdpl checkout ${2}
+  ;;
+
+  clean)
+    exec eltdpl clean
+  ;;
+
+  init)
+    exec eltdpl init
+  ;;
+
+  pull)
+    exec eltdpl pull ${2}
+  ;;
+
+  *)
+    echo 'Usage:'
+    echo '  eltcshdpl {clean|init}'
+    echo '  eltcshdpl pull <version>'
+    echo '  eltcshdpl checkout <version>'
+    exit 1
+  ;;
+esac

@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+s=${2:-10}
+
+if ps -p ${1} | awk '{print $1}' | grep -q ${1}; then
+  if [ ${s} -gt 0 ]; then
+    sleep 1
+    exec awaitk ${1} $(( ${s} - 1 ))
+  else
+    exit 1
+  fi
+else
+  exit 0
+fi

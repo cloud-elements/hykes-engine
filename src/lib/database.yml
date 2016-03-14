@@ -1,0 +1,12 @@
+---
+
+# Usage:
+#  ansible-playbook -i inventory database.yml
+#  ansible-playbook -i inventory database.yml --extra-vars='limit=database[0]'
+
+- name: database
+  hosts: "{{ limit | default('*') }}:&database"
+  become: yes
+  become_method: sudo
+  roles:
+    - database

@@ -1,0 +1,10 @@
+---
+
+# Usage: ansible-playbook -i inventory util_suspend.yml
+
+- hosts: "{{ limit | default('*') }}:&loadbalance"
+  become: yes
+  become_method: sudo
+  tasks:
+    - name: eltlbctl unavailable
+      shell: /usr/local/bin/eltlbctl unavailable

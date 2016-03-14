@@ -1,0 +1,144 @@
+---
+
+# ElasticSearch:
+- name: 'elasticsearch : detect existing installation'
+  stat: path=/opt/elasticsearch-{{ logstore.env.elasticsearch_version }}
+  register: elasticsearch_installed
+
+- name: 'elasticsearch : create group'
+  group: state=present name=elasticsearch
+
+- name: 'elasticsearch : create user'
+  user: state=present name=elasticsearch group=elasticsearch
+
+- name: 'elasticsearch : download'
+  shell: >
+    wget -q -O /tmp/elasticsearch-{{ logstore.env.elasticsearch_version }}.tar.gz https://download.elastic.co/elasticsearch/elasticsearch/elasticsearch-{{ logstore.env.elasticsearch_version }}.tar.gz
+    creates=/tmp/elasticsearch-{{ logstore.env.elasticsearch_version }}.tar.gz
+    warn=no
+  when: elasticsearch_installed.stat.isdir is not defined or not elasticsearch_installed.stat.isdir
+
+- name: 'elasticsearch : decompress'
+  shell: >
+    tar -xvzf /tmp/elasticsearch-{{ logstore.env.elasticsearch_version }}.tar.gz -C /tmp
+    creates=/tmp/elasticsearch-{{ logstore.env.elasticsearch_version }}
+    warn=no
+  when: elasticsearch_installed.stat.isdir is not defined or not elasticsearch_installed.stat.isdir
+
+- name: 'elasticsearch : move'
+  shell: cp -a /tmp/elasticsearch-{{ logstore.env.elasticsearch_version }} /opt
+  when: elasticsearch_installed.stat.isdir is not defined or not elasticsearch_installed.stat.isdir
+
+- name: 'elasticsearch : secure'
+  file: >
+    state=directory
+    path=/opt/elasticsearch-{{ logstore.env.elasticsearch_version }}
+    owner=elasticsearch group=elasticsearch recurse=yes
+
+- name: 'elasticsearch : create fhs filesystem'
+  file: >
+    state=directory
+    path={{ item }}
+    owner=elasticsearch group=elasticsearch mode=755
+  with_items:
+    - /etc/opt/elasticsearch
+    - /var/opt/elasticsearch
+    - /var/opt/elasticsearch/data
+    - /var/opt/elasticsearch/log
+    - /var/opt/elasticsearch/work
+
+- name: 'elasticsearch : config'
+  template: >
+    src={{ item }}
+    dest=/{{ item }}
+    owner=elasticsearch group=elasticsearch mode=0640
+  with_items:
+    - etc/opt/elasticsearch/elasticsearch.yml
+    - etc/opt/elasticsearch/logging.yml
+  notify: eltlstctl restart
+
+- name: 'elasticsearch : link version agnostic'
+  file: >
+    state=link
+    src=/opt/elasticsearch-{{ logstore.env.elasticsearch_version }}
+    path=/opt/elasticsearch
+    owner=root group=root
+
+- name: 'elasticsearch : link clis'
+  file: >
+    src=/opt/elasticsearch-{{ logstore.env.elasticsearch_version }}/bin/{{ item }}
+    dest=/opt/bin/{{ item }}
+    state=link owner=root group=root
+  with_items:
+    - elasticsearch
+
+- name: 'elasticsearch : firewall'
+  shell: ufw allow from {{ hostvars[item].ansible_eth0.ipv4.address }}/32 proto tcp to any port 9200
+  with_items: "{{ groups.logpipe + groups.logstore + groups.loadbalance }}"
+
+- name: 'elasticsearch : firewall'
+  shell: ufw allow from {{ hostvars[item].ansible_eth0.ipv4.address }}/32 proto tcp to any port 9300
+  with_items: "{{ groups.logpipe + groups.logstore + groups.loadbalance }}"
+
+- name: 'elasticsearch : upstart'
+  template: >
+    src=etc/init/elasticsearch.conf
+    dest=/etc/init/elasticsearch.conf
+    owner=root group=root mode=0644
+  notify: eltlstctl restart
+
+# Elements:
+- name: 'elements : install clis'
+  template: >
+    src=usr/local/bin/{{ item }}
+    dest=/usr/local/bin/{{ item }}
+    group=root owner=root mode=0755
+  with_items:
+    - eltlstctl
+    - eltlstdpl
+
+# Config system:
+- name: 'config system : set environment variables'
+  lineinfile: >
+    state=present dest=/etc/profile
+    regexp="^export {{ item.key | upper }}\="
+    line="export {{ item.key | upper }}={{ item.value }}"
+    insertbefore=BOF
+  with_dict: "{{ logstore.env }}"
+  notify: eltlstctl restart
+  when: logstore is defined and logstore.env is defined
+
+- name: 'config system : detect directories'
+  local_action: "shell { find {{ pwd }}/roles/logstore/configs -type d ! -path {{ pwd }}/roles/logstore/configs | sed -e 's|{{ pwd }}/roles/logstore/configs||g' 2>/dev/null || true; }"
+  register: configdirs
+  become: no
+
+- name: 'config system : detect files'
+  local_action: "shell { find {{ pwd }}/roles/logstore/configs -type f ! -name '.DS_Store' | sed -e 's|{{ pwd }}/roles/logstore/configs||g' 2>/dev/null || true; }"
+  register: configfiles
+  become: no
+
+- name: 'config system : create directories'
+  file: >
+    state=directory
+    path={{ item }}
+  with_items: "{{ configdirs.stdout.splitlines() }}"
+  notify: eltlstctl restart
+  when: configdirs.stdout.splitlines().0 is defined
+
+- name: 'config system : create files'
+  template: >
+    src="{{ pwd }}/roles/logstore/configs{{ item }}"
+    dest={{ item }}
+    owner=root group=root mode=0700
+  with_items: "{{ configfiles.stdout.splitlines() }}"
+  notify: eltlstctl restart
+  when: configfiles.stdout.splitlines().0 is defined
+
+- name: 'config system : execute shell entries'
+  shell: "source /etc/profile; {{ item }}"
+  args:
+    executable: /bin/bash
+  with_items: "{{ logstore.shell }}"
+  notify: eltlstctl restart
+  when: logstore is defined and logstore.shell is defined and logstore.shell.0 is defined

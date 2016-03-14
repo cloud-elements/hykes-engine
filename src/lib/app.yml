@@ -1,0 +1,12 @@
+---
+
+# Usage:
+#  ansible-playbook -i inventory app.yml
+#  ansible-playbook -i inventory app.yml --extra-vars='limit=app[0]'
+
+- name: app
+  hosts: "{{ limit | default('*') }}:&app"
+  become: yes
+  become_method: sudo
+  roles:
+    - app
