@@ -1,0 +1,59 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides: repmgr
+# Required-Start: $local_fs $remote_fs $network $syslog postgresql
+# Required-Stop: $local_fs $remote_fs $network $syslog postgresql
+# Should-Start: $syslog postgresql
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: repmgr
+### END INIT INFO
+
+[ ! -f /var/opt/repmgr/log/repmgr.log ] \
+  && (cd /var/opt/repmgr/log ; touch repmgr.log && chown postgres:postgres repmgr.log && chmod 750 repmgr.log)
+
+case "$1" in
+  start)
+    echo -n 'Starting repmgr: '
+    start-stop-daemon --start --quiet --background \
+      --chuid postgres:postgres \
+      --pidfile /var/run/repmgr.pid --make-pidfile \
+      --startas /bin/bash -- -c "exec /opt/bin/repmgrd --config-file=/etc/opt/repmgr/repmgr.conf --verbose >> /var/opt/repmgr/log/repmgr.log 2>&1"
+
+    case "$?" in
+      0) echo 'done' ;;
+      1) echo 'already started' ;;
+      *) echo 'failed' ;;
+    esac
+  ;;
+
+  stop)
+    echo -n 'Stopping repmgr: '
+    start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 \
+      --pidfile /var/run/repmgr.pid \
+      --exec /opt/bin/repmgrd
+
+    case "$?" in
+      0) echo 'done' ;;
+      1) echo 'already stopped' ;;
+      *) echo 'failed' ;;
+    esac
+  ;;
+
+  restart)
+    $0 stop
+    $0 start
+  ;;
+
+  status)
+    . /lib/lsb/init-functions
+    status_of_proc -p /var/run/repmgr.pid /opt/bin/repmgrd repmgr && exit 0 || exit $?
+  ;;
+
+  *)
+    echo "Usage: repmgr {start|stop|restart|status}"
+    exit 1
+  ;;
+esac
+
+exit 0

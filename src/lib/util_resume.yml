@@ -1,0 +1,10 @@
+---
+
+# Usage: ansible-playbook -i inventory util_resume.yml
+
+- hosts: "{{ limit | default('*') }}:&loadbalance"
+  become: yes
+  become_method: sudo
+  tasks:
+    - name: eltlbctl available
+      shell: /usr/local/bin/eltlbctl available

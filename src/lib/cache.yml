@@ -1,0 +1,12 @@
+---
+
+# Usage:
+#  ansible-playbook -i inventory cache.yml
+#  ansible-playbook -i inventory cache.yml --extra-vars='limit=cache[0]'
+
+- name: cache
+  hosts: "{{ limit | default('*') }}:&cache"
+  become: yes
+  become_method: sudo
+  roles:
+    - cache

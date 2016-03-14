@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+echo $(ps -ef | grep -v grep | grep -v ppid | grep "${1}" | awk '{ a[$3]++ } END { for (b in a) if(b != 1) { print b } }')
+exit 0

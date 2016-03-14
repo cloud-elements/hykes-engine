@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+a=(${1//:/ })
+s=${2:-10}
+
+if nc -z ${a[0]} ${a[1]}; then
+  exit 0
+else
+  if [ ${s} -gt 0 ]; then
+    sleep 1
+    exec awaitd ${a[0]}:${a[1]} $(( ${s} - 1 ))
+  else
+    exit 1
+  fi
+fi

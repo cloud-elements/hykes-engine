@@ -1,0 +1,4 @@
+---
+
+- name: eltlpictl restart
+  shell: eltlpictl restart

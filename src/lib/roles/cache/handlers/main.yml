@@ -1,0 +1,4 @@
+---
+
+- name: eltcshctl restart
+  shell: eltcshctl restart

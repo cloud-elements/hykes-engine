@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+    <organization>
+        <name>Cloud Elements Security</name>
+        <url>http://www.cloud-elements.com/</url>
+    </organization>
+    <groupId>cloudelements</groupId>
+    <artifactId>elements</artifactId>
+    <packaging>pom</packaging>
+    <version>1.3.0-SNAPSHOT</version>
+    <name>Cloud Elements</name>
+    <inceptionYear>2014</inceptionYear>
+
+    <description>The Cloud Elements Security Execution</description>
+
+    <properties>
+        <yakisoba.version>1.7.4</yakisoba.version>
+    </properties>
+
+    <prerequisites>
+        <maven>2.0</maven>
+    </prerequisites>
+
+    <pluginRepositories>
+        <pluginRepository>
+            <id>cloud-elements-repo</id>
+            <name>Cloud Elements Maven 2 Repository</name>
+            <url>http://repo.cloud-elements.com</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </pluginRepository>
+
+        <pluginRepository>
+            <id>maven-repo1</id>
+            <name>Maven 2 Repository 1</name>
+            <url>http://repo1.maven.org/maven2</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </pluginRepository>
+    </pluginRepositories>
+
+    <build>
+        <sourceDirectory>src/main/java</sourceDirectory>
+        <testSourceDirectory>src/test/java</testSourceDirectory>
+
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>2qrius</groupId>
+                    <artifactId>yakisoba</artifactId>
+                    <version>${yakisoba.version}</version>
+                    <configuration>
+                        <patchDirectory>${patchDirectory}</patchDirectory>
+                        <searchRoot>${searchRoot}</searchRoot>
+                        <updatePatchPrefix>${updatePatchPrefix}</updatePatchPrefix>
+                        <jarFilesLocation>${jarFilesLocation}</jarFilesLocation>
+                        <jarFiles>
+                            <jarFile>elements-core,ce-security</jarFile>
+                        </jarFiles>
+                        <warFilesLocation>${warFilesLocation}</warFilesLocation>
+                        <warFiles>
+                        </warFiles>
+                        <updateList>${updateList}</updateList>
+                        <updateSkipList>${updateSkipList}</updateSkipList>
+                        <searchIncludes>${searchIncludes}</searchIncludes>
+                        <dbDriver>${dbDriver}</dbDriver>
+                        <dbUrl>${dbUrl}</dbUrl>
+                        <dbUsername>${dbUsername}</dbUsername>
+                        <dbPassword>${dbPassword}</dbPassword>
+                        <dbType>${dbType}</dbType>
+                    </configuration>
+
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>dbdeploy</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+
+        <defaultGoal>dbdeploy</defaultGoal>
+    </build>
+</project>

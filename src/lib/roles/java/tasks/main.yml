@@ -1,0 +1,24 @@
+---
+
+- name: install java ppa
+  apt_repository: state=present repo='ppa:webupd8team/java'
+  register: java_ppa
+
+- name: update apt-get
+  apt: update_cache=yes
+  when: java_ppa.changed
+
+- name: accept oracle license
+  debconf: >
+    name="oracle-java8-installer"
+    question='shared/accepted-oracle-license-v1-1'
+    value='true' vtype='select'
+
+- name: install jdk
+  apt: state=present pkg="oracle-java8-installer"
+
+- name: install default jdk environment variables
+  apt: state=present pkg="oracle-java8-set-default"
+
+- name: install unlimited jce policy
+  apt: state=present pkg="oracle-java8-unlimited-jce-policy"

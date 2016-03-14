@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+
+case "$1" in
+  checkout)
+    exec eltdpl checkout ${2}
+  ;;
+
+  clean)
+    exec eltdpl clean
+  ;;
+
+  deploy)
+    v=$(cat /tmp/.eltdpl/checkout | xargs eltdpl normver)
+
+    test -f "/tmp/.eltdpl/elements-${v}.war" || { echo 'Pull not found...'; exit 1; }
+
+    eltappctl stop && \
+    rm -rf /srv/opt/tomcat/elements/* && \
+    mkdir /srv/opt/tomcat/elements/webapps && \
+    mkdir /srv/opt/tomcat/elements/webapps/elements && \
+    (cd /srv/opt/tomcat/elements/webapps/elements; jar -xf /tmp/.eltdpl/elements-${v}.war) && \
+    chown -R tomcat:tomcat /srv/opt/tomcat/elements/webapps && \
+    chmod -R 750 /srv/opt/tomcat/elements/webapps/elements && \
+    eltappctl start
+
+    exit $?
+  ;;
+
+  init)
+    exec eltdpl init
+  ;;
+
+  pull)
+    exec eltdpl pull ${2}
+  ;;
+
+  *)
+    echo 'Usage:'
+    echo '  eltappdpl {clean|init|deploy}'
+    echo '  eltappdpl pull <version>'
+    echo '  eltappdpl checkout <version>'
+    exit 1
+  ;;
+esac

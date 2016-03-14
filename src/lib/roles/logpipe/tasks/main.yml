@@ -1,0 +1,134 @@
+---
+
+# Logstash:
+- name: 'logstash : detect existing installation'
+  stat: path=/opt/logstash-{{ logpipe.env.logstash_version }}
+  register: logstash_installed
+
+- name: 'logstash : create group'
+  group: state=present name=logstash
+
+- name: 'logstash : create user'
+  user: state=present name=logstash group=logstash
+
+- name: 'logstash : download'
+  shell: >
+    wget -q -O /tmp/logstash-{{ logpipe.env.logstash_version }}.tar.gz https://download.elastic.co/logstash/logstash/logstash-{{ logpipe.env.logstash_version }}.tar.gz
+    creates=/tmp/logstash-{{ logpipe.env.logstash_version }}.tar.gz
+    warn=no
+  when: logstash_installed.stat.isdir is not defined or not logstash_installed.stat.isdir
+
+- name: 'logstash : decompress'
+  shell: >
+    tar -xvzf /tmp/logstash-{{ logpipe.env.logstash_version }}.tar.gz -C /tmp
+    creates=/tmp/logstash-{{ logpipe.env.logstash_version }}
+    warn=no
+  when: logstash_installed.stat.isdir is not defined or not logstash_installed.stat.isdir
+
+- name: 'logstash : move'
+  shell: cp -a /tmp/logstash-{{ logpipe.env.logstash_version }} /opt
+  when: logstash_installed.stat.isdir is not defined or not logstash_installed.stat.isdir
+
+- name: 'logstash : secure'
+  file: >
+    state=directory
+    path=/opt/logstash-{{ logpipe.env.logstash_version }}
+    owner=logstash group=logstash recurse=yes
+
+- name: 'logstash : create fhs filesystem'
+  file: >
+    state=directory
+    path={{ item }}
+    owner=logstash group=logstash mode=755
+  with_items:
+    - /etc/opt/logstash
+    - /var/opt/logstash
+    - /var/opt/logstash/log
+
+- name: 'logstash : config'
+  template: >
+    src={{ item }}
+    dest=/{{ item }}
+    owner=logstash group=logstash mode=0640
+  with_items:
+    - etc/opt/logstash/logstash.conf
+  notify: eltlpictl restart
+
+- name: 'logstash : link version agnostic'
+  file: >
+    state=link
+    src=/opt/logstash-{{ logpipe.env.logstash_version }}
+    path=/opt/logstash
+    owner=root group=root
+
+- name: 'logstash : link clis'
+  file: >
+    src=/opt/logstash-{{ logpipe.env.logstash_version }}/bin/{{ item }}
+    dest=/opt/bin/{{ item }}
+    state=link owner=root group=root
+  with_items:
+    - logstash
+    - logstash.lib.sh
+
+- name: 'logstash : upstart'
+  template: >
+    src=etc/init/logstash.conf
+    dest=/etc/init/logstash.conf
+    owner=root group=root mode=0644
+  notify: eltlpictl restart
+
+# Elements:
+- name: 'elements : install clis'
+  template: >
+    src=usr/local/bin/{{ item }}
+    dest=/usr/local/bin/{{ item }}
+    group=root owner=root mode=0755
+  with_items:
+    - eltlpictl
+    - eltlpidpl
+
+# Config system:
+- name: 'config system : set environment variables'
+  lineinfile: >
+    state=present dest=/etc/profile
+    regexp="^export {{ item.key | upper }}\="
+    line="export {{ item.key | upper }}={{ item.value }}"
+    insertbefore=BOF
+  with_dict: "{{ logpipe.env }}"
+  notify: eltlpictl restart
+  when: logpipe is defined and logpipe.env is defined
+
+- name: 'config system : detect directories'
+  local_action: "shell { find {{ pwd }}/roles/logpipe/configs -type d ! -path {{ pwd }}/roles/logpipe/configs | sed -e 's|{{ pwd }}/roles/logpipe/configs||g' 2>/dev/null || true; }"
+  register: configdirs
+  become: no
+
+- name: 'config system : detect files'
+  local_action: "shell { find {{ pwd }}/roles/logpipe/configs -type f ! -name '.DS_Store' | sed -e 's|{{ pwd }}/roles/logpipe/configs||g' 2>/dev/null || true; }"
+  register: configfiles
+  become: no
+
+- name: 'config system : create directories'
+  file: >
+    state=directory
+    path={{ item }}
+  with_items: "{{ configdirs.stdout.splitlines() }}"
+  notify: eltlpictl restart
+  when: configdirs.stdout.splitlines().0 is defined
+
+- name: 'config system : create files'
+  template: >
+    src="{{ pwd }}/roles/logpipe/configs{{ item }}"
+    dest={{ item }}
+    owner=root group=root mode=0700
+  with_items: "{{ configfiles.stdout.splitlines() }}"
+  notify: eltlpictl restart
+  when: configfiles.stdout.splitlines().0 is defined
+
+- name: 'config system : execute shell entries'
+  shell: "source /etc/profile; {{ item }}"
+  args:
+    executable: /bin/bash
+  with_items: "{{ logpipe.shell }}"
+  notify: eltlpictl restart
+  when: logpipe is defined and logpipe.shell is defined and logpipe.shell.0 is defined

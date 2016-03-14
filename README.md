@@ -40,14 +40,16 @@ on Ubuntu.
 ```bash
 $ hykes-engine --help
 Usage:
-  hykes-engine build [--as|-a <username>] [--quiet|-q]
-  hykes-engine key <username> <key> [--as|-a <username>] [--quiet|-q]
-  hykes-engine resume [--as|-a <username>] [--quiet|-q]
-  hykes-engine suspend [--as|-a <username>] [--quiet|-q]
+  hykes-engine build [--against=<role>] [--as=<username>] [--init] [--quiet]
+  hykes-engine deploy [--as=<username>] [--quiet]
+  hykes-engine key <username> <key> [--against=<role>] [--as=<username>] [--quiet]
+  hykes-engine resume [--as=<username>] [--quiet]
+  hykes-engine suspend [--as=<username>] [--quiet]
 
 Core Commands:
-  build      Build/rebuild cloud
-  key        Key/rekey cloud
+  build      Build or rebuild cloud
+  deploy     Deploy to cloud
+  key        Key or rekey cloud
   resume     Resume cloud (publicly consumable)
   suspend    Suspend cloud (not publicly consumable)
 

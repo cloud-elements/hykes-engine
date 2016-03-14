@@ -1,0 +1,50 @@
+---
+
+# Usage:
+#   ansible-playbook -i inventory util_deploy.yml
+
+# Reduce unavailability by pulling elements bundle to all hosts so that only deployment is left.
+- hosts: all
+  become: yes
+  become_method: sudo
+  tasks:
+    - name: eltdpl init
+      shell: >
+        eltdpl init &&
+        eltdpl pull {{ app.env.elements_version }} &&
+        eltdpl checkout {{ app.env.elements_version }}
+
+- hosts: loadbalance
+  become: yes
+  become_method: sudo
+  tasks:
+    - name: eltlbctl unavailable
+      shell: /usr/local/bin/eltlbctl unavailable
+
+- hosts: database[0]
+  become: yes
+  become_method: sudo
+  tasks:
+    - name: eltdbdpl deploy
+      shell: eltdbdpl deploy {{ elements_password }} {{ cesecurity_password }}
+
+- hosts: app
+  become: yes
+  become_method: sudo
+  tasks:
+    - name: eltappdpl deploy
+      shell: eltappdpl deploy
+
+    - name: await
+      get_url: url=http://127.0.0.1:8080/elements/jsp/login.jsp dest=/tmp timeout=64
+      register: awaitup
+      until: "'OK' in awaitup.msg"
+      retries: 8
+      delay: 8
+
+- hosts: loadbalance
+  become: yes
+  become_method: sudo
+  tasks:
+    - name: eltlbctl available
+      shell: /usr/local/bin/eltlbctl available

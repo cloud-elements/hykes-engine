@@ -1,0 +1,4 @@
+---
+
+- name: eltmsgctl restart
+  shell: eltmsgctl restart

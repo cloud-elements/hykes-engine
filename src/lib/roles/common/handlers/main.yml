@@ -1,0 +1,13 @@
+---
+
+- name: enable ufw
+  ufw: state=enabled policy=deny
+
+- name: reload sysctl configuration
+  shell: /sbin/sysctl -p
+
+- name: restart ssh service
+  service: name=ssh state=restarted
+
+- name: restart ntp service
+  service: name=ntp state=restarted

@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+case "$1" in
+  restart)
+{% if inventory_hostname == groups.message[0] %}
+    exec service zookeeper restart
+{% else %}
+    exec service kafka restart
+{% endif %}
+  ;;
+
+  start)
+{% if inventory_hostname == groups.message[0] %}
+    exec service zookeeper start
+{% else %}
+    exec service kafka start
+{% endif %}
+  ;;
+
+  stop)
+{% if inventory_hostname == groups.message[0] %}
+    exec service zookeeper stop
+{% else %}
+    exec service kafka stop
+{% endif %}
+  ;;
+
+  *)
+    echo 'Usage:'
+    echo '  eltmsgctl {start|stop|restart}'
+    exit 1
+  ;;
+esac

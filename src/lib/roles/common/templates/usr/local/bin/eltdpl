@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+
+case "$1" in
+  checkout)
+    v=$(eltdpl normver ${2})
+
+    if [ -f "/tmp/.eltdpl/checkout" ] && [ "$(cat /tmp/.eltdpl/checkout)" == "${v}" ]; then
+      exit 0
+    else
+      test -f "/tmp/.eltdpl/elements-${v}.war" || { echo 'Pull not found...'; exit 1; }
+
+      echo ${v} > /tmp/.eltdpl/checkout
+      (cd /tmp/.eltdpl ; rm -rf elements && mkdir elements && mkdir elements/jars)
+      (cd /tmp/.eltdpl/elements ; jar -xf ../elements-${v}.war)
+      (cd /tmp/.eltdpl/elements/jars ; ls ../WEB-INF/lib | egrep '^elements-' | while read line ; do jar -xf ../WEB-INF/lib/$line ; done)
+      exit 0
+    fi
+  ;;
+
+  clean)
+    rm -rf /tmp/.eltdpl
+    exit $?
+  ;;
+
+  init)
+    mkdir -p /tmp/.eltdpl && chmod 755 /tmp/.eltdpl
+    exit $?
+  ;;
+
+  normver)
+    curl --location --fail --output /tmp/.eltdpl/normver http://repo.cloud-elements.com/cloudelements/elements-application-elements/maven-metadata.xml >/dev/null 2>/dev/null || exit $?
+
+    if [ "${2}" == "latest" ]; then
+      v=$(cat /tmp/.eltdpl/normver | grep '<release>' | sed -e 's,.*<release>\([^<]*\)</release>.*,\1,g')
+    else
+      v=${2}
+    fi
+
+    echo ${v}
+    exit 0
+  ;;
+
+  pull)
+    v=$(eltdpl normver ${2})
+
+    if [ ! -f "/tmp/.eltdpl/elements-${v}.war" ]; then
+      curl --location --fail --silent --output /tmp/.eltdpl/elements-${v}.war http://repo.cloud-elements.com/cloudelements/elements-application-elements/${v}/elements-application-elements-${v}.war
+
+      if [ $? -ne 0 ]; then
+        echo 'Pull failed...'
+        exit 1
+      fi
+    fi
+
+    echo ${v} > /tmp/.eltdpl/pull
+    exit 0
+  ;;
+
+  *)
+    echo 'Usage:'
+    echo '  eltdpl {clean|init}'
+    echo '  eltdpl pull <version>'
+    echo '  eltdpl checkout <version>'
+    echo '  eltdpl normver <version>'
+    exit 1
+  ;;
+esac
