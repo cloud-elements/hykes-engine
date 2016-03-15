@@ -28,10 +28,7 @@ stub:
 test: | test-unit test-integration
 
 test-integration: | install
-	@bats \
-		test/integration/init.bats \
-		test/integration/key.bats \
-		test/integration/build.bats
+	@bats test/integration
 
 test-unit: | install
 	@bats test/unit
