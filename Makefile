@@ -1,6 +1,7 @@
 .DEFAULT_GOAL := stub
 bindir ?= ./build/bin
 libdir ?= ./build/lib
+tmpdir ?= ./build/tmp
 uname := $(shell uname -s)
 
 clean: | uninstall
@@ -24,6 +25,7 @@ endif
 stub:
 	@mkdir -p ${bindir}
 	@mkdir -p ${libdir}
+	@mkdir -p ${tmpdir}
 
 test: | test-unit test-integration
 
@@ -36,5 +38,6 @@ test-unit: | install
 uninstall:
 	@rm -rf ${bindir}
 	@rm -rf ${libdir}
+	@rm -rf ${tmpdir}
 
 .PHONY: clean install stub test test-integration test-unit uninstall
