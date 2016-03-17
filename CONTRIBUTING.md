@@ -31,7 +31,7 @@ git history free of noisy merge commits.
 ### Triggering Parameterized Builds
 
 Before accepting pull requests, you _must_ trigger a CircleCI parameterized build with all `TEST_`
-parameters set to `0` (e.g. `TEST_CLI_INTEGRATION=0`) to ensure all tests pass on a CI environment
+parameters set to `0` (e.g. `TEST_INTEGRATION=0`) to ensure all tests pass on a CI environment
 before merging. The [circleci-cli](https://github.com/rockymadden/circleci-cli) project facilitates
 this usage pattern (but use whatever works best for you).
 
