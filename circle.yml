@@ -8,6 +8,13 @@ dependencies:
     - sudo apt-get install bats
     - sudo apt-get install git
     - gem install tugboat
+    - echo -e "${TUGBOAT_TOKEN}\n~/.ssh/id_rsa\nroot\n22\ntor1\nubuntu-14-04-x64\n512mb\n${TUGBOAT_KEYS}\nfalse\nfalse\nfalse" | tugboat authorize
+    - (cd /tmp; git clone git@github.com:cloud-elements/hykes-blueprint.git)
+    - (cd /tmp/hykes-blueprint; make && make install)
+    - sudo ln -s /tmp/hykes-blueprint/build/bin/hykes-blueprint /usr/local/bin/hykes-blueprint
+    - (cd /tmp; git clone git@github.com:cloud-elements/hykes-provision.git)
+    - (cd /tmp/hykes-provision; make && make install)
+    - sudo ln -s /tmp/hykes-provision/build/bin/hykes-provision /usr/local/bin/hykes-provision
 
 test:
   override:
