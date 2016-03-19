@@ -43,7 +43,7 @@ while (( "$#" )); do
   case "${1}" in
     --as=*) as=${1/--as=/''}; shift ;;
     --against=*) against=${1/--against=/''}; shift ;;
-    --backup-encryption-password=*) backup_encrpytion_password=${1/--backup-encryption-password=/''}; shift ;;
+    --backup-encryption-password=*) backup_encryption_password=${1/--backup-encryption-password=/''}; shift ;;
     --cesecurity-password=*) cesecurity_password=${1/--cesecurity-password=/''}; shift ;;
     --deploy) deploy='0'; shift ;;
     --elements-password=*) elements_password=${1/--elements-password=/''}; shift ;;
