@@ -23,3 +23,6 @@ test:
     - if [ -n "${TEST_UNIT}" ] && [ "${TEST_UNIT}" -eq 0 ]; then make test-unit; fi
     - if [ -n "${TEST_INTEGRATION}" ] && [ "${TEST_INTEGRATION}" -eq 0 ]; then make test-integration; fi:
         timeout: 14400
+
+  post:
+    - if [ -f /tmp/hykes-engine.bats.log ]; then mv /tmp/hykes-engine.bats.log "${CIRCLE_ARTIFACTS}"; fi
