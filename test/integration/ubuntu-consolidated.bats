@@ -3,12 +3,10 @@
 # Sleep handles for DigitalOcean bug in which they report servers being up but truly are not.
 function infrastructure-create() {
   hykes-provision create digitalocean --consolidated --dns=hosts --specs=small && sleep 30
-  return 0
 }
 
 function infrastructure-destroy() {
   hykes-provision destroy digitalocean --consolidated --dns=hosts
-  return 0
 }
 
 function infrastructure-exists() {
