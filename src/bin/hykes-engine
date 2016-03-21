@@ -43,7 +43,7 @@ while (( "$#" )); do
   case "${1}" in
     --as=*) as=${1/--as=/''}; shift ;;
     --against=*) against=${1/--against=/''}; shift ;;
-    --backup-encryption-password=*) backup_encrpytion_password=${1/--backup-encryption-password=/''}; shift ;;
+    --backup-encryption-password=*) backup_encryption_password=${1/--backup-encryption-password=/''}; shift ;;
     --cesecurity-password=*) cesecurity_password=${1/--cesecurity-password=/''}; shift ;;
     --deploy) deploy='0'; shift ;;
     --elements-password=*) elements_password=${1/--elements-password=/''}; shift ;;
@@ -94,25 +94,25 @@ esac
 function ingest() {
   mkdir -p "${libdir}/group_vars" && \
   rm -f "${libdir}/cloud" && \
-  cp -a "$(pwd)/hykes.ini" "${libdir}/cloud" && \
+  rsync -a "$(pwd)/hykes.ini" "${libdir}/cloud" && \
   rm -f "${libdir}/group_vars/cloud" && \
-  cp -a "$(pwd)/hykes.yml" "${libdir}/group_vars/cloud" && \
+  rsync -a "$(pwd)/hykes.yml" "${libdir}/group_vars/cloud" && \
   rm -rf "${libdir}/roles/app/configs" && mkdir -p "${libdir}/roles/app/configs" && \
-  { cp -a "$(pwd)/app/" "${libdir}/roles/app/configs/" 2>/dev/null || true; } && \
+  { rsync -a --delete "$(pwd)/app/" "${libdir}/roles/app/configs/" 2>/dev/null || true; } && \
   rm -rf "${libdir}/roles/cache/configs" && mkdir -p "${libdir}/roles/cache/configs" && \
-  { cp -a "$(pwd)/cache/" "${libdir}/roles/cache/configs/" 2>/dev/null || true; } && \
+  { rsync -a --delete "$(pwd)/cache/" "${libdir}/roles/cache/configs/" 2>/dev/null || true; } && \
   rm -rf "${libdir}/roles/cloud" && mkdir -p "${libdir}/roles/cloud/configs" && \
-  { cp -a "$(pwd)/cloud/" "${libdir}/roles/cloud/configs/" 2>/dev/null || true; } && \
+  { rsync -a --delete "$(pwd)/cloud/" "${libdir}/roles/cloud/configs/" 2>/dev/null || true; } && \
   rm -rf "${libdir}/roles/database/configs" && mkdir -p "${libdir}/roles/database/configs" && \
-  { cp -a "$(pwd)/database/" "${libdir}/roles/database/configs/" 2>/dev/null || true; } && \
+  { rsync -a --delete "$(pwd)/database/" "${libdir}/roles/database/configs/" 2>/dev/null || true; } && \
   rm -rf "${libdir}/roles/loadbalance/configs" && mkdir -p "${libdir}/roles/loadbalance/configs" && \
-  { cp -a "$(pwd)/loadbalance/" "${libdir}/roles/loadbalance/configs/" 2>/dev/null || true; } && \
+  { rsync -a --delete "$(pwd)/loadbalance/" "${libdir}/roles/loadbalance/configs/" 2>/dev/null || true; } && \
   rm -rf "${libdir}/roles/logpipe/configs" && mkdir -p "${libdir}/roles/logpipe/configs" && \
-  { cp -a "$(pwd)/logpipe/" "${libdir}/roles/logpipe/configs/" 2>/dev/null || true; } && \
+  { rsync -a --delete "$(pwd)/logpipe/" "${libdir}/roles/logpipe/configs/" 2>/dev/null || true; } && \
   rm -rf "${libdir}/roles/logstore/configs" && mkdir -p "${libdir}/roles/logstore/configs" && \
-  { cp -a "$(pwd)/logstore/" "${libdir}/roles/logstore/configs/" 2>/dev/null || true; } && \
+  { rsync -a --delete "$(pwd)/logstore/" "${libdir}/roles/logstore/configs/" 2>/dev/null || true; } && \
   rm -rf "${libdir}/roles/message/configs" && mkdir -p "${libdir}/roles/message/configs" && \
-  { cp -a "$(pwd)/message/" "${libdir}/roles/message/configs/" 2>/dev/null || true; }
+  { rsync -a --delete "$(pwd)/message/" "${libdir}/roles/message/configs/" 2>/dev/null || true; }
 }
 
 ## Command functions ##############################################################################
