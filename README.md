@@ -4,7 +4,6 @@
 [![elements](http://img.shields.io/badge/elements-%3E%3D%202.55.0-blue.svg)](https://github.com/cloud-elements/soba)
 [![versioning](http://img.shields.io/badge/versioning-semver-blue.svg)](http://semver.org/)
 [![branching](http://img.shields.io/badge/branching-github%20flow-blue.svg)](https://guides.github.com/introduction/flow/)
-[![pm](http://img.shields.io/badge/pm-zenhub-blue.svg)](https://www.zenhub.io)
 [![docs](http://img.shields.io/badge/docs-read-blue.svg)](https://developers.cloud-elements.com)
 [![forum](http://img.shields.io/badge/forum-join-blue.svg)](https://forum.cloud-elements.com)
 [![circleci](https://circleci.com/gh/cloud-elements/hykes-engine.svg?style=shield)](https://circleci.com/gh/cloud-elements/hykes-engine)
