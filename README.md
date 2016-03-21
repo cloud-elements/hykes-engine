@@ -1,8 +1,9 @@
 # hykes-engine <sub><sup>| Cloud Elements Enterprise builder</sup></sub>
 [![version](http://img.shields.io/badge/version-0.0.0-blue.svg)](CHANGELOG.md)
+[![spec](http://img.shields.io/badge/spec-%3E%3D%200.0.0-blue.svg)](https://github.com/cloud-elements/hykes-spec)
+[![elements](http://img.shields.io/badge/elements-%3E%3D%202.55.0-blue.svg)](https://github.com/cloud-elements/soba)
 [![versioning](http://img.shields.io/badge/versioning-semver-blue.svg)](http://semver.org/)
 [![branching](http://img.shields.io/badge/branching-github%20flow-blue.svg)](https://guides.github.com/introduction/flow/)
-[![license](http://img.shields.io/badge/license-apache-blue.svg)](LICENSE.md)
 [![pm](http://img.shields.io/badge/pm-zenhub-blue.svg)](https://www.zenhub.io)
 [![docs](http://img.shields.io/badge/docs-read-blue.svg)](https://developers.cloud-elements.com)
 [![forum](http://img.shields.io/badge/forum-join-blue.svg)](https://forum.cloud-elements.com)
