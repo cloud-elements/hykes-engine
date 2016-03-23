@@ -166,7 +166,7 @@ function exec() {
   if [ -n "${against}" ]; then local limit="'limit':'${against}',"; fi
   if [ -n "${as}" ]; then local user="--user=${as}"; fi
 
-  pprint head 'Exec' ${quiet}
+  pprint head 'Execute' ${quiet}
 
   pprint subhead 'Ingesting' ${quiet}
   ingest || { pprint bad 'failed' ${quiet}; return 1; }
