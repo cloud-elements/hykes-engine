@@ -1,0 +1,13 @@
+---
+
+# Usage:
+
+- hosts: "{{ limit | default('all') }}"
+  become: yes
+  become_method: sudo
+  gather_facts: no
+  serial: 1
+  tasks:
+    - raw: "{{ command }}"
+      args:
+        executable: /bin/bash
