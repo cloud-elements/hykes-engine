@@ -41,14 +41,16 @@ on Ubuntu.
 $ hykes-engine --help
 Usage:
   hykes-engine build [--against=<role>] [--as=<username>] [--init] [--quiet]
-  hykes-engine deploy [--as=<username>] [--quiet]
+  hykes-engine deploy [--against=<role>] [--as=<username>] [--quiet]
+  hykes-engine exec <command> [--against=<role>] [--as=<username>] [--quiet]
   hykes-engine key <username> <key> [--against=<role>] [--as=<username>] [--quiet]
-  hykes-engine resume [--as=<username>] [--quiet]
-  hykes-engine suspend [--as=<username>] [--quiet]
+  hykes-engine resume [--against=<role>] [--as=<username>] [--quiet]
+  hykes-engine suspend [--against=<role>] [--as=<username>] [--quiet]
 
 Core Commands:
   build      Build or rebuild cloud
   deploy     Deploy to cloud
+  exec       Execute command against cloud
   key        Key or rekey cloud
   resume     Resume cloud (publicly consumable)
   suspend    Suspend cloud (not publicly consumable)
