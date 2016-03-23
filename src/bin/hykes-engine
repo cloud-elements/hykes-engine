@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-export ANSIBLE_HOST_KEY_CHECKING=False
-
 bindir=
 libdir=
 cmd="${1}"; shift
@@ -45,6 +43,7 @@ while (( "$#" )); do
     --against=*) against=${1/--against=/''}; shift ;;
     --backup-encryption-password=*) backup_encryption_password=${1/--backup-encryption-password=/''}; shift ;;
     --cesecurity-password=*) cesecurity_password=${1/--cesecurity-password=/''}; shift ;;
+    --command=*) cmnd=${1/--command=/''}; shift ;;
     --deploy) deploy='0'; shift ;;
     --elements-password=*) elements_password=${1/--elements-password=/''}; shift ;;
     --init) init='0'; shift ;;
@@ -54,6 +53,9 @@ while (( "$#" )); do
     --username=*) username=${1/--username=/''}; shift ;;
     *)
       case "${cmd}" in
+        exec)
+          test -n "${1}" && test -z "${cmnd}" && cmnd=${1}
+        ;;
         key)
           test -n "${1}" && test -n "${username}" && key=${1}
           test -n "${1}" && test -z "${username}" && username=${1}
@@ -83,6 +85,9 @@ case "${cmd}" in
       && { read -e -p 'Enter Elements password: ' -s elements_password; echo; }
     test -z "${cesecurity_password}" \
       && { read -e -p 'Enter CE security password: ' -s cesecurity_password; echo; }
+  ;;
+  exec)
+    test -z "${cmnd}" && read -e -p 'Enter command: ' cmnd
   ;;
   key)
     test -z "${username}" && read -e -p 'Enter username (e.g. rocky): ' username
@@ -117,36 +122,58 @@ function ingest() {
 
 ## Command functions ##############################################################################
 function build() {
-  pprint head 'Building' ${quiet}
+  local pwd="'pwd':'${libdir}',"
+  if [ -n "${against}" ]; then local limit="'limit':'${against}',"; fi
+  if [ -n "${as}" ]; then local user="--user=${as}"; fi
+  if [ -n "${backup_encryption_password}" ]; then local bkpass="'backup_encryption_password':'${backup_encryption_password}',"; fi
+  if [ -n "${cesecurity_password}" ]; then local cepass="'cesecurity_password':'${cesecurity_password}',"; fi
+  if [ -n "${elements_password}" ]; then local elpass="'elements_password':'${elements_password}',"; fi
+  if [ -n "${init}" ]; then local init="'init':'1',"; fi
+  if [ -n "${master_encryption_password}" ]; then local mspass="'master_encryption_password':'${master_encryption_password}',"; fi
+
+  pprint head 'Build' ${quiet}
 
   pprint subhead 'Ingesting' ${quiet}
   ingest || { pprint bad 'failed' ${quiet}; return 1; }
 
   pprint subhead 'Executing' ${quiet}
-  if [ -n "${as}" ]; then local user="--user=${as}"; fi
-  if [ -n "${against}" ]; then local limit="limit=${against}"; fi
-  if [ -n "${init}" ]; then local init="init=1"; fi
-  if [ -n "${elements_password}" ]; then local elpass="elements_password=${elements_password}"; fi
-  if [ -n "${cesecurity_password}" ]; then local cepass="cesecurity_password=${cesecurity_password}"; fi
-  if [ -n "${master_encryption_password}" ]; then local mspass="master_encryption_password=${master_encryption_password}"; fi
-  if [ -n "${backup_encryption_password}" ]; then local bkpass="backup_encryption_password=${backup_encryption_password}"; fi
   ansible-playbook -i "${libdir}/cloud" "${libdir}/cloud.yml" ${user} \
-    --extra-vars "pwd=${libdir} ${limit} ${init} ${elpass} ${cepass} ${mspass} ${bkpass}" \
+    --extra-vars "{${bkpass}${cepass}${elpass}${init}${limit}${mspass}${pwd}}" \
     || { pprint bad 'failed' ${quiet}; return 1; }
 }
 
 function deploy() {
-  pprint head 'Deploying' ${quiet}
+  local cepass="'cesecurity_password':'${cesecurity_password}',"
+  local elpass="'elements_password':'${elements_password}',"
+  local pwd="'pwd':'${libdir}',"
+  if [ -n "${against}" ]; then local limit="'limit':'${against}',"; fi
+  if [ -n "${as}" ]; then local user="--user=${as}"; fi
+
+  pprint head 'Deploy' ${quiet}
 
   pprint subhead 'Ingesting' ${quiet}
   ingest || { pprint bad 'failed' ${quiet}; return 1; }
 
   pprint subhead 'Executing' ${quiet}
-  local elpass="elements_password=${elements_password}"
-  local cepass="cesecurity_password=${cesecurity_password}"
-  if [ -n "${as}" ]; then local user="--user=${as}"; fi
   ansible-playbook -i "${libdir}/cloud" "${libdir}/util_deploy.yml" ${user} \
-    --extra-vars "pwd=${libdir} ${limit} ${elpass} ${cepass}" \
+    --extra-vars "{${cepass}${elpass}${limit}${pwd}}" \
+    || { pprint bad 'failed' ${quiet}; return 1; }
+}
+
+function exec() {
+  local cmnd="'command':'${cmnd}',"
+  local pwd="'pwd':'${libdir}',"
+  if [ -n "${against}" ]; then local limit="'limit':'${against}',"; fi
+  if [ -n "${as}" ]; then local user="--user=${as}"; fi
+
+  pprint head 'Exec' ${quiet}
+
+  pprint subhead 'Ingesting' ${quiet}
+  ingest || { pprint bad 'failed' ${quiet}; return 1; }
+
+  pprint subhead 'Executing' ${quiet}
+  ansible-playbook -i "${libdir}/cloud" "${libdir}/util_exec.yml" ${user} \
+    --extra-vars "{${cmnd}${limit}${pwd}}" \
     || { pprint bad 'failed' ${quiet}; return 1; }
 }
 
@@ -156,14 +183,16 @@ function help() {
 
   echo 'Usage:'
   echo "  ${bin} build [--against=<role>] [--as=<username>] [--init] [--quiet]"
-  echo "  ${bin} deploy [--as=<username>] [--quiet]"
+  echo "  ${bin} deploy [--against=<role>] [--as=<username>] [--quiet]"
+  echo "  ${bin} exec <command> [--against=<role>] [--as=<username>] [--quiet]"
   echo "  ${bin} key <username> <key> [--against=<role>] [--as=<username>] [--quiet]"
-  echo "  ${bin} resume [--as=<username>] [--quiet]"
-  echo "  ${bin} suspend [--as=<username>] [--quiet]"
+  echo "  ${bin} resume [--against=<role>] [--as=<username>] [--quiet]"
+  echo "  ${bin} suspend [--against=<role>] [--as=<username>] [--quiet]"
   echo
   echo 'Core Commands:'
   echo '  build      Build or rebuild cloud'
   echo '  deploy     Deploy to cloud'
+  echo '  exec       Execute command against cloud'
   echo '  key        Key or rekey cloud'
   echo '  resume     Resume cloud (publicly consumable)'
   echo '  suspend    Suspend cloud (not publicly consumable)'
@@ -175,42 +204,52 @@ function help() {
 }
 
 function key() {
-  pprint head 'Keying' ${quiet}
+  local key="'key':'${key}',"
+  local pwd="'pwd':'${libdir}',"
+  local username="'username':'${username}',"
+  if [ -n "${against}" ]; then local limit="'limit':'${against}',"; fi
+  if [ -n "${as}" ]; then local user="--user=${as}"; fi
+
+  pprint head 'Key' ${quiet}
 
   pprint subhead 'Ingesting' ${quiet}
   ingest || { pprint bad 'failed' ${quiet}; return 1; }
 
   pprint subhead 'Executing' ${quiet}
-  if [ -n "${as}" ]; then local user="--user=${as}"; fi
-  if [ -n "${against}" ]; then local limit="limit=${against}"; fi
   ansible-playbook -i "${libdir}/cloud" "${libdir}/util_key.yml" ${user} \
-    --extra-vars "pwd=${libdir} username=${username} key=${key} ${limit}" \
+    --extra-vars "{${key}${limit}${pwd}${username}}" \
     || { pprint bad 'failed' ${quiet}; return 1; }
 }
 
 function resume() {
-  pprint head 'Resuming' ${quiet}
+  local pwd="'pwd':'${libdir}',"
+  if [ -n "${against}" ]; then local limit="'limit':'${against}',"; fi
+  if [ -n "${as}" ]; then local user="--user=${as}"; fi
+
+  pprint head 'Resume' ${quiet}
 
   pprint subhead 'Ingesting' ${quiet}
   ingest || { pprint bad 'failed' ${quiet}; return 1; }
 
   pprint subhead 'Executing' ${quiet}
-  if [ -n "${as}" ]; then local user="--user=${as}"; fi
   ansible-playbook -i "${libdir}/cloud" "${libdir}/util_resume.yml" ${user} \
-    --extra-vars "pwd=${libdir}" \
+    --extra-vars "{${limit}${pwd}}" \
     || { pprint bad 'failed'; return 1; }
 }
 
 function suspend() {
-  pprint head 'Suspending' ${quiet}
+  local pwd="'pwd':'${libdir}',"
+  if [ -n "${against}" ]; then local limit="'limit':'${against}',"; fi
+  if [ -n "${as}" ]; then local user="--user=${as}"; fi
+
+  pprint head 'Suspend' ${quiet}
 
   pprint subhead 'Ingesting' ${quiet}
   ingest || { pprint bad 'failed' ${quiet}; return 1; }
 
   pprint subhead 'Executing' ${quiet}
-  if [ -n "${as}" ]; then local user="--user=${as}"; fi
   ansible-playbook -i "${libdir}/cloud" "${libdir}/util_suspend.yml" ${user} \
-    --extra-vars "pwd=${libdir}" \
+    --extra-vars "{${limit}${pwd}}" \
     || { pprint bad 'failed'; return 1; }
 }
 
@@ -222,6 +261,8 @@ function version() {
 case "${cmd}" in
   --help|-h) help; exit 0 ;;
   --version|-v) version; exit 0 ;;
-  build|deploy|key|resume|suspend) "${cmd}"; exit "$?" ;;
+  build|deploy|exec|key|resume|suspend)
+    export ANSIBLE_HOST_KEY_CHECKING=False; "${cmd}"; exit "$?"
+  ;;
   *) help; exit 1 ;;
 esac
