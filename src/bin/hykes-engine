@@ -262,7 +262,12 @@ case "${cmd}" in
   --help|-h) help; exit 0 ;;
   --version|-v) version; exit 0 ;;
   build|deploy|exec|key|resume|suspend)
-    export ANSIBLE_HOST_KEY_CHECKING=False; "${cmd}"; exit "$?"
+    export ANSIBLE_HOST_KEY_CHECKING=False
+    export ANSIBLE_SSH_CONTROL_PATH='%(directory)s/%%h'
+    export ANSIBLE_SSH_RETRIES=8
+    export ANSIBLE_TIMEOUT=64
+    "${cmd}"
+    exit "$?"
   ;;
   *) help; exit 1 ;;
 esac
