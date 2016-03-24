@@ -17,10 +17,6 @@ $ brew tap cloud-elements/hykes
 $ brew install hykes-engine
 ```
 
-### Via PPA:
-
-In development
-
 ### Via compiling from source:
 
 ```bash
