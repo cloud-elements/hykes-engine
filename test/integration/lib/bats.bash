@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 function bats-break() {
-  test -f build/var/tmp/hykes-engine.bats.lock
+  [ -f build/var/tmp/hykes-engine.bats.lock ]
 }
 
 function bats-break-set() {
@@ -13,7 +13,7 @@ function bats-break-unset() {
 }
 
 function bats-test-first() {
-  test "${BATS_TEST_NUMBER}" -eq 1
+  [ "${BATS_TEST_NUMBER}" -eq 1 ]
 }
 
 function blueprint-clone() {
@@ -23,7 +23,7 @@ function blueprint-clone() {
 }
 
 function blueprint-exists() {
-  test -d build/var/tmp/hykes-spec
+ [ -d build/var/tmp/hykes-spec ]
 }
 
 function setup() {
@@ -33,7 +33,11 @@ function setup() {
 }
 
 function teardown() {
-  echo "${BATS_TEST_NAME}" >> build/var/log/hykes-engine.bats.log
-  echo "${output}" >> build/var/log/hykes-engine.bats.log
+  if [ -n "${BATS_TEST_NAME}" ]; then
+    echo "${BATS_TEST_NAME}" >> build/var/log/hykes-engine.bats.log
+    echo "${output}" >> build/var/log/hykes-engine.bats.log
+  fi
   if bats-break && infrastructure-exists; then infrastructure-destroy; fi
 }
+
+trap "teardown" SIGINT SIGTERM
