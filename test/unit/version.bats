@@ -1,5 +1,7 @@
 #!/usr/bin/env bats
 
+load lib/bats
+
 @test '-v should output version' {
   run build/bin/hykes-engine -v
   [ "${status}" -eq 0 ]

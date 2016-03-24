@@ -2,6 +2,8 @@
 
 bindir=
 libdir=
+logdir=
+tmpdir=
 cmd="${1}"; shift
 
 ## Global utility functions #######################################################################
@@ -137,7 +139,7 @@ function build() {
   ingest || { pprint bad 'failed' ${quiet}; return 1; }
 
   pprint subhead 'Executing' ${quiet}
-  ansible-playbook -i "${libdir}/cloud" "${libdir}/cloud.yml" ${user} \
+  ansible-playbook -i "${libdir}/cloud" "${libdir}/cloud.yml" -vvvv ${user} \
     --extra-vars "{${bkpass}${cepass}${elpass}${init}${limit}${mspass}${pwd}}" \
     || { pprint bad 'failed' ${quiet}; return 1; }
 }
@@ -155,7 +157,7 @@ function deploy() {
   ingest || { pprint bad 'failed' ${quiet}; return 1; }
 
   pprint subhead 'Executing' ${quiet}
-  ansible-playbook -i "${libdir}/cloud" "${libdir}/util_deploy.yml" ${user} \
+  ansible-playbook -i "${libdir}/cloud" "${libdir}/util_deploy.yml" -vvvv ${user} \
     --extra-vars "{${cepass}${elpass}${limit}${pwd}}" \
     || { pprint bad 'failed' ${quiet}; return 1; }
 }
@@ -172,7 +174,7 @@ function exec() {
   ingest || { pprint bad 'failed' ${quiet}; return 1; }
 
   pprint subhead 'Executing' ${quiet}
-  ansible-playbook -i "${libdir}/cloud" "${libdir}/util_exec.yml" ${user} \
+  ansible-playbook -i "${libdir}/cloud" "${libdir}/util_exec.yml" -vvvv ${user} \
     --extra-vars "{${cmnd}${limit}${pwd}}" \
     || { pprint bad 'failed' ${quiet}; return 1; }
 }
@@ -216,7 +218,7 @@ function key() {
   ingest || { pprint bad 'failed' ${quiet}; return 1; }
 
   pprint subhead 'Executing' ${quiet}
-  ansible-playbook -i "${libdir}/cloud" "${libdir}/util_key.yml" ${user} \
+  ansible-playbook -i "${libdir}/cloud" "${libdir}/util_key.yml" -vvvv ${user} \
     --extra-vars "{${key}${limit}${pwd}${username}}" \
     || { pprint bad 'failed' ${quiet}; return 1; }
 }
@@ -232,7 +234,7 @@ function resume() {
   ingest || { pprint bad 'failed' ${quiet}; return 1; }
 
   pprint subhead 'Executing' ${quiet}
-  ansible-playbook -i "${libdir}/cloud" "${libdir}/util_resume.yml" ${user} \
+  ansible-playbook -i "${libdir}/cloud" "${libdir}/util_resume.yml" -vvvv ${user} \
     --extra-vars "{${limit}${pwd}}" \
     || { pprint bad 'failed'; return 1; }
 }
@@ -248,7 +250,7 @@ function suspend() {
   ingest || { pprint bad 'failed' ${quiet}; return 1; }
 
   pprint subhead 'Executing' ${quiet}
-  ansible-playbook -i "${libdir}/cloud" "${libdir}/util_suspend.yml" ${user} \
+  ansible-playbook -i "${libdir}/cloud" "${libdir}/util_suspend.yml" -vvvv ${user} \
     --extra-vars "{${limit}${pwd}}" \
     || { pprint bad 'failed'; return 1; }
 }
@@ -263,9 +265,10 @@ case "${cmd}" in
   --version|-v) version; exit 0 ;;
   build|deploy|exec|key|resume|suspend)
     export ANSIBLE_HOST_KEY_CHECKING=False
+    export ANSIBLE_LOG_PATH="${logdir}/hykes-engine.ansible.log"
     export ANSIBLE_SSH_CONTROL_PATH='%(directory)s/%%h'
     export ANSIBLE_SSH_RETRIES=8
-    export ANSIBLE_TIMEOUT=64
+    export ANSIBLE_TIMEOUT=16
     "${cmd}"
     exit "$?"
   ;;
