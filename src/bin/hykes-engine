@@ -266,6 +266,7 @@ case "${cmd}" in
   build|deploy|exec|key|resume|suspend)
     export ANSIBLE_HOST_KEY_CHECKING=False
     export ANSIBLE_LOG_PATH="${logdir}/hykes-engine.ansible.log"
+    export ANSIBLE_SSH_ARGS='-o ControlMaster=auto -o ControlPersist=60s -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
     export ANSIBLE_SSH_CONTROL_PATH='%(directory)s/%%h'
     export ANSIBLE_SSH_RETRIES=8
     export ANSIBLE_TIMEOUT=16
