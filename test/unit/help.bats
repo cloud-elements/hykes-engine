@@ -1,5 +1,7 @@
 #!/usr/bin/env bats
 
+load lib/bats
+
 @test '-h should output usage' {
   run build/bin/hykes-engine -h
   [ "${status}" -eq 0 ]

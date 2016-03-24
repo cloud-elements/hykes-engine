@@ -25,4 +25,4 @@ test:
         timeout: 14400
 
   post:
-    - if [ -f /tmp/hykes-engine.bats.log ]; then mv /tmp/hykes-engine.bats.log "${CIRCLE_ARTIFACTS}"; fi
+    - if [ -d ~/hykes-engine/build/var/log ]; then mv ~/hykes-engine/build/var/log/* "${CIRCLE_ARTIFACTS}"; fi
