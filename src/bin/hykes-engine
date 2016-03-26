@@ -185,7 +185,10 @@ function help() {
   bin=${a[${#a[@]}-1]}
 
   echo 'Usage:'
-  echo "  ${bin} build [--against=<role>] [--as=<username>] [--init] [--quiet] [--verbose]"
+  echo "  ${bin} build [--against=<role>] [--as=<username>] [--quiet] [--verbose]"
+  echo '    [--init'
+  echo '      [--elements-password=<password>] [--cesecurity-password=<password>]'
+  echo '      [--master-encryption-password=<password>] [--backup-encryption-password=<password>]]'
   echo "  ${bin} deploy [--against=<role>] [--as=<username>] [--quiet] [--verbose]"
   echo "  ${bin} exec <command> [--against=<role>] [--as=<username>] [--quiet] [--verbose]"
   echo "  ${bin} key <username> <key> [--against=<role>] [--as=<username>] [--quiet] [--verbose]"

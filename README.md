@@ -36,7 +36,10 @@ on Ubuntu.
 ```bash
 $ hykes-engine --help
 Usage:
-  hykes-engine build [--against=<role>] [--as=<username>] [--init] [--quiet] [--verbose]
+  hykes-engine build [--against=<role>] [--as=<username>] [--quiet] [--verbose]
+    [--init
+      [--elements-password=<password>] [--cesecurity-password=<password>]
+      [--master-encryption-password=<password>] [--backup-encryption-password=<password>]]
   hykes-engine deploy [--against=<role>] [--as=<username>] [--quiet] [--verbose]
   hykes-engine exec <command> [--against=<role>] [--as=<username>] [--quiet] [--verbose]
   hykes-engine key <username> <key> [--against=<role>] [--as=<username>] [--quiet] [--verbose]
